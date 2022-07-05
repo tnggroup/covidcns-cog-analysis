@@ -1,0 +1,1157 @@
+---
+title: "COVIDCNS Interim EDA Script"
+author: "Zain Ahmad"
+date: "24/06/2022"
+output: html_document
+---
+
+Setup environment
+```{r}
+# Clear global environment
+remove(list = ls())
+
+# Import package_check
+source(file = "functions/package_check.R")
+
+# Install/load packages
+packages <- c(
+  "summarytools",
+  "sjlabelled",
+  "gtsummary",
+  "cowplot",
+  "plotscale",
+  "tidyverse"
+  )
+package_check(packages)
+
+# Import ilovecovidcns path
+source(file = "credentials/paths.R")
+
+# Import data
+data_joined <- readRDS(file = paste0(ilovecovidcns, "/data/joined/covidcns_greta.rds"))
+
+# Set gtsummary themes
+theme_gtsummary_compact()
+theme_gtsummary_journal("nejm")
+```
+
+Add windowed inpatient admission variable
+```{r Window inpatient admission}
+data_joined <- data_joined %>%
+  mutate(
+    ncrf1_admission_windowed =
+      case_when(ncrf1_admission.date_of_inpatient_admission.txt >= as.POSIXct("2020-03-01") & ncrf1_admission.date_of_inpatient_admission.txt <= as.POSIXct("2020-09-01")  ~ "March 2020 to August 2020",
+                
+                ncrf1_admission.date_of_inpatient_admission.txt >= as.POSIXct("2020-09-01") & ncrf1_admission.date_of_inpatient_admission.txt < as.POSIXct("2021-03-01")  ~ "September 2020 to February 2021",
+                
+                ncrf1_admission.date_of_inpatient_admission.txt >= as.POSIXct("2021-03-01") & ncrf1_admission.date_of_inpatient_admission.txt < as.POSIXct("2021-09-01")  ~ "March 2021 to August 2021",
+                
+                ncrf1_admission.date_of_inpatient_admission.txt >= as.POSIXct("2021-09-01") & ncrf1_admission.date_of_inpatient_admission.txt < as.POSIXct("2022-03-01")  ~ "September 2021 to February 2022",
+                is.na(ncrf1_admission.date_of_inpatient_admission.txt) ~ "Missing",
+                ncrf1_admission.date_of_inpatient_admission.txt < as.POSIXct("2020-03-01") | ncrf1_admission.date_of_inpatient_admission.txt >= as.POSIXct("2022-03-01")  ~ "Other"
+                )
+    )
+```
+
+Simplify COVID19 severity
+```{r Simplify severity}
+data_joined <- data_joined %>%
+  mutate(across(ncrf1_vital.admission_severity_worst_covid19,
+                ~case_when(
+        . == "Uninfected (No viral RNA detected)" ~ "Uninfected",
+        . == "Asymptomatic (Viral RNA detected)" |
+          . == "Symptomatic (Independent)"	|
+          . == "Symptomatic (Assistance needed)" ~ "Ambulatory mild disease",
+        . == "Hospitalised (No oxygen therapy)" |
+          . == "Hospitalised (Oxygen by mask or nasal prongs)" ~ "Hospitalised: moderate disease",
+        . == "Hospitalised (Oxygen by NIV or high flow)" |
+          . == "Intubation and mechanical ventilation (pO2/FiO2 >= 150 or SpO2/FiO2 >= 200)" |
+          . == "Mechanical ventilation (pO2/FiO2 <150 or SpO2/FiO2 <200 or vasopressors)" |
+          . == "Mechanical ventilation (pO2/FiO2 <150 and vasopressors, dialysis or ECMO)" ~ "Hospitalised: severe disease",
+        is.na(.) ~ NA_character_)
+        )
+    )
+```
+
+
+
+
+# Tables
+
+## Summary Tables
+
+Summary table by case control vaccine
+```{r Summary table case control vaccine}
+covidcns_sumtable <- data_joined %>%
+  
+  # Mutate vaccine/control to NA, keep case and covid+/- controls
+  mutate(across(.cols = case_control_vaccine,
+                 .fns = ~case_when(str_detect(case_control_vaccine, "accine") ~ NA_character_,
+                                   . == "Control" ~ NA_character_,
+                                   TRUE ~ .)
+                )
+          ) %>%
+  
+  # Remove pts missing cognitron
+  filter(!is.na(Composite_global)) %>%
+  
+  # Mutate windowed admission to ordered factor
+  mutate(
+    ncrf1_admission_windowed = 
+      factor(
+        ncrf1_admission_windowed,
+        levels = c("March 2020 to August 2020",
+                   "September 2020 to February 2021",
+                   "March 2021 to August 2021",
+                   "September 2021 to February 2022",
+                   "Other",
+                   "Missing"),
+        ordered = TRUE
+        )
+    ) %>%
+  
+  # Convert NAs to explicit factor to show in table per category
+  dplyr::mutate(dem.sex_at_birth = factor(dem.sex_at_birth) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  dplyr::mutate(ncrf1_vital.admission_severity_worst_covid19 = factor(ncrf1_vital.admission_severity_worst_covid19) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  dplyr::mutate(ncrf2_med.corticosteroid = factor(ncrf2_med.corticosteroid) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  dplyr::mutate(ncrf1_comorbid.clinical_frailty_scale = factor(ncrf1_comorbid.clinical_frailty_scale) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  dplyr::mutate(dem.concerned_memory = factor(dem.concerned_memory) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  dplyr::mutate(dem.highest_education = factor(dem.highest_education) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  # Create summary table
+  tbl_summary(
+    
+    # split by case_control_vaccine
+    by = case_control_vaccine,
+              
+    # vars to include
+    include = c(dem.dob_age,
+                dem.sex_at_birth,
+                dem.highest_education,
+                ncrf1_vital.admission_severity_worst_covid19,
+                ncrf1_comorbid.clinical_frailty_scale,
+                ncrf1_admission_windowed,
+                gad7.sum_score,
+                phq9.sum_score,
+                pcl5.sum_score,
+                ncrf2_med.corticosteroid,
+                dem.concerned_memory,
+                Composite_global,
+                Composite_acc,
+                Composite_rt),
+    
+    # 2 line summary
+    type = all_continuous() ~ "continuous2",
+    
+    # exclude standard missing values
+    missing = "no",
+    
+    # add mean, sd, missing n and missing % for cont vars
+    statistic = list(all_continuous() ~ c("{mean} ({sd})", "{N_miss} ({p_miss}%)")),
+    
+    # add custom labels
+    label = list(dem.dob_age ~ "Age",
+                 dem.sex_at_birth ~ "Sex",
+                 dem.highest_education ~ "Education",
+                 ncrf1_vital.admission_severity_worst_covid19 ~ "COVID19 Severity",
+                 ncrf1_comorbid.clinical_frailty_scale ~ "Clinical Frailty Score",
+                 ncrf1_admission_windowed ~ "Date of Inpatient Admission",
+                 gad7.sum_score ~ "GAD7 Sumscore (Cutoff = 10)",
+                 phq9.sum_score ~ "PHQ9 Sumscore (Cutoff = 10)",
+                 pcl5.sum_score ~ "PCL5 Sumscore (Cutoff = 32)",
+                 ncrf2_med.corticosteroid ~ "Corticosteroid Administration",
+                 dem.concerned_memory ~ "Concerned about Memory",
+                 Composite_global ~ "Cognitron Global Score",
+                 Composite_acc ~ "Cognitron Accuracy Score",
+                 Composite_rt ~ "Cognitron RT Score")
+              ) %>%
+  
+  # add labels for missing n/%
+  modify_table_body(dplyr::mutate,
+                    label = ifelse(label == "N missing (% missing)", "Missing", label)
+                    ) %>%
+  
+  # bold variable names
+  bold_labels()
+
+# Save table as png image
+gt::gtsave(as_gt(covidcns_sumtable), file = "analysis/tables/summary/covidcns_sumtable.png")
+
+# View table
+covidcns_sumtable
+```
+
+Summary table by diagnostic group
+```{r Summary table diagnostic group}
+covidcns_sumtable_bycase <- data_joined %>%
+  
+  # Remove pts missing cognitron
+  filter(!is.na(Composite_global)) %>%
+  
+  # Mutate windowed admission to ordered factor
+  mutate(
+    ncrf1_admission_windowed = 
+      factor(
+        ncrf1_admission_windowed,
+        levels = c("March 2020 to August 2020",
+                   "September 2020 to February 2021",
+                   "March 2021 to August 2021",
+                   "September 2021 to February 2022",
+                   "Other",
+                   "Missing"),
+        ordered = TRUE
+        )
+    ) %>%
+  
+  # Convert NAs to explicit factor to show in table per category
+  dplyr::mutate(dem.sex_at_birth = factor(dem.sex_at_birth) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  dplyr::mutate(ncrf1_vital.admission_severity_worst_covid19 = factor(ncrf1_vital.admission_severity_worst_covid19) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  dplyr::mutate(ncrf2_med.corticosteroid = factor(ncrf2_med.corticosteroid) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  dplyr::mutate(ncrf1_comorbid.clinical_frailty_scale = factor(ncrf1_comorbid.clinical_frailty_scale) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  dplyr::mutate(dem.concerned_memory = factor(dem.concerned_memory) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  dplyr::mutate(dem.highest_education = factor(dem.highest_education) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  # Create summary table with stats to match Kuha's table
+  tbl_summary(by = diagnostic_group, # same as above except this line
+              include = c(dem.dob_age,
+                          dem.sex_at_birth,
+                          dem.highest_education,
+                          ncrf1_vital.admission_severity_worst_covid19,
+                          ncrf1_comorbid.clinical_frailty_scale,
+                          ncrf1_admission_windowed,
+                          gad7.sum_score,
+                          phq9.sum_score,
+                          pcl5.sum_score,
+                          ncrf2_med.corticosteroid,
+                          dem.concerned_memory,
+                          Composite_global,
+                          Composite_acc,
+                          Composite_rt),
+              type = all_continuous() ~ "continuous2",
+              missing = "no",
+              statistic = list(all_continuous() ~ c("{mean} ({sd})", "{N_miss} ({p_miss}%)")),
+              label = list(dem.dob_age ~ "Age",
+                           dem.sex_at_birth ~ "Sex",
+                           dem.highest_education ~ "Education",
+                           ncrf1_vital.admission_severity_worst_covid19 ~ "COVID19 Severity",
+                           ncrf1_comorbid.clinical_frailty_scale ~ "Clinical Frailty Score",
+                           ncrf1_admission_windowed ~ "Date of Inpatient Admission",
+                           gad7.sum_score ~ "GAD7 Sumscore (Cutoff = 10)",
+                           phq9.sum_score ~ "PHQ9 Sumscore (Cutoff = 10)",
+                           pcl5.sum_score ~ "PCL5 Sumscore (Cutoff = 32)",
+                           ncrf2_med.corticosteroid ~ "Corticosteroid Administration",
+                           dem.concerned_memory ~ "Concerned about Memory",
+                           Composite_global ~ "Cognitron Global Score",
+                           Composite_acc ~ "Cognitron Accuracy Score",
+                           Composite_rt ~ "Cognitron RT Score")
+              ) %>%
+  modify_table_body(dplyr::mutate,
+                    label = ifelse(label == "N missing (% missing)", "Missing", label)
+                    ) %>%
+  bold_labels()
+
+# Save table
+gt::gtsave(as_gt(covidcns_sumtable_bycase), file = "analysis/tables/summary/covidcns_sumtable_bycase.png")
+covidcns_sumtable_bycase
+```
+
+
+## Regression Tables
+
+
+Multivariate regression table global scores
+```{r Regression table global}
+covidcns_regtable_global <- data_joined %>%
+
+  # Remove pts missing cognitron
+  filter(!is.na(Composite_global)) %>%
+  
+  # Select regression vars
+  select(Composite_global,
+         dem.dob_age,
+         dem.sex_at_birth,
+         dem.highest_education,
+         diagnostic_group,
+         ncrf1_vital.admission_severity_worst_covid19,
+         ncrf1_comorbid.clinical_frailty_scale,
+         gad7.sum_score,
+         phq9.sum_score,
+         pcl5.sum_score,
+         cfs.sum_score,
+         case_control_vaccine,
+         ncrf2_med.corticosteroid,
+         dem.concerned_memory
+         ) %>%
+  
+  # Relevel 
+  mutate(diagnostic_group = relevel(as.factor(diagnostic_group), ref = "Unknown")) %>%
+  
+  # Regression table
+  tbl_uvregression(
+    # linear regression
+    method = lm,
+    
+    # outcome cognitron global score
+    y = Composite_global,
+    
+    # set custom labels
+    label = list(dem.dob_age ~ "Age",
+                 dem.sex_at_birth ~ "Sex",
+                 dem.highest_education ~ "Education",
+                 diagnostic_group ~ "Clinical Group",
+                 ncrf1_vital.admission_severity_worst_covid19 ~ "COVID19 Severity",
+                 ncrf1_comorbid.clinical_frailty_scale ~ "Clinical Frailty Score",
+                 gad7.sum_score ~ "GAD7 Sumscore",
+                 phq9.sum_score ~ "PHQ9 Sumscore",
+                 pcl5.sum_score ~ "PCL5 Sumscore",
+                 cfs.sum_score ~ "CFS Sumscore",
+                 case_control_vaccine ~ "Case/Control/Vaccine status",
+                 ncrf2_med.corticosteroid ~ "Corticosteroid Administration",
+                 dem.concerned_memory ~ "Concerned about Memory"),
+    
+    # zero estimates for 1st category in categorical vars
+    add_estimate_to_reference_rows = TRUE
+  ) %>%
+  
+  # add bold variable names
+  bold_labels()
+
+# Save table as png image
+gt::gtsave(as_gt(covidcns_regtable_global), file = "analysis/tables/regression/covidcns_regtable_global.png")
+
+# View table
+covidcns_regtable_global
+```
+
+Multivariate regression table accuracy scores
+```{r Regression table accuracy}
+covidcns_regtable_accuracy <- data_joined %>%
+
+  # Remove pts missing cognitron
+  filter(!is.na(Composite_acc)) %>%
+  
+  # Select regression vars
+  select(Composite_acc,
+         dem.dob_age,
+         dem.sex_at_birth,
+         dem.highest_education,
+         diagnostic_group,
+         ncrf1_vital.admission_severity_worst_covid19,
+         ncrf1_comorbid.clinical_frailty_scale,
+         gad7.sum_score,
+         phq9.sum_score,
+         pcl5.sum_score,
+         cfs.sum_score,
+         case_control_vaccine,
+         ncrf2_med.corticosteroid,
+         dem.concerned_memory
+         ) %>%
+  
+  # Regression table
+  tbl_uvregression(
+    # linear regression
+    method = lm,
+    
+    # outcome cognitron global score
+    y = Composite_acc,
+    
+    # set custom labels
+    label = list(dem.dob_age ~ "Age",
+                 dem.sex_at_birth ~ "Sex",
+                 dem.highest_education ~ "Education",
+                 diagnostic_group ~ "Clinical Group",
+                 ncrf1_vital.admission_severity_worst_covid19 ~ "COVID19 Severity",
+                 ncrf1_comorbid.clinical_frailty_scale ~ "Clinical Frailty Score",
+                 gad7.sum_score ~ "GAD7 Sumscore",
+                 phq9.sum_score ~ "PHQ9 Sumscore",
+                 pcl5.sum_score ~ "PCL5 Sumscore",
+                 cfs.sum_score ~ "CFS Sumscore",
+                 case_control_vaccine ~ "Case/Control/Vaccine status",
+                 ncrf2_med.corticosteroid ~ "Corticosteroid Administration",
+                 dem.concerned_memory ~ "Concerned about Memory"),
+    
+    # zero estimates for 1st category in categorical vars
+    add_estimate_to_reference_rows = TRUE
+  ) %>%
+  
+  # add bold variable names
+  bold_labels()
+
+# Save table as png image
+gt::gtsave(as_gt(covidcns_regtable_accuracy), file = "analysis/tables/regression/covidcns_regtable_accuracy.png")
+
+# View table
+covidcns_regtable_accuracy
+```
+
+Multivariate regression table RTs
+```{r Regression table RTs}
+covidcns_regtable_rt <- data_joined %>%
+
+  # Remove pts missing cognitron
+  filter(!is.na(Composite_rt)) %>%
+  
+  # Select regression vars
+  select(Composite_rt,
+         dem.dob_age,
+         dem.sex_at_birth,
+         dem.highest_education,
+         diagnostic_group,
+         ncrf1_vital.admission_severity_worst_covid19,
+         ncrf1_comorbid.clinical_frailty_scale,
+         gad7.sum_score,
+         phq9.sum_score,
+         pcl5.sum_score,
+         cfs.sum_score,
+         case_control_vaccine,
+         ncrf2_med.corticosteroid,
+         dem.concerned_memory
+         ) %>%
+  
+  # Regression table
+  tbl_uvregression(
+    # linear regression
+    method = lm,
+    
+    # outcome cognitron global score
+    y = Composite_rt,
+    
+    # set custom labels
+    label = list(dem.dob_age ~ "Age",
+                 dem.sex_at_birth ~ "Sex",
+                 dem.highest_education ~ "Education",
+                 diagnostic_group ~ "Clinical Group",
+                 ncrf1_vital.admission_severity_worst_covid19 ~ "COVID19 Severity",
+                 ncrf1_comorbid.clinical_frailty_scale ~ "Clinical Frailty Score",
+                 gad7.sum_score ~ "GAD7 Sumscore",
+                 phq9.sum_score ~ "PHQ9 Sumscore",
+                 pcl5.sum_score ~ "PCL5 Sumscore",
+                 cfs.sum_score ~ "CFS Sumscore",
+                 case_control_vaccine ~ "Case/Control/Vaccine status",
+                 ncrf2_med.corticosteroid ~ "Corticosteroid Administration",
+                 dem.concerned_memory ~ "Concerned about Memory"),
+    
+    # zero estimates for 1st category in categorical vars
+    add_estimate_to_reference_rows = TRUE
+  ) %>%
+  
+  # add bold variable names
+  bold_labels()
+
+# Save table as png image
+gt::gtsave(as_gt(covidcns_regtable_rt), file = "analysis/tables/regression/covidcns_regtable_rt.png")
+
+# View table
+covidcns_regtable_rt
+```
+
+
+
+## ANOVA
+
+
+ANOVA table for cognitron dfe scores by case/control/vaccine
+```{r ANOVA case control vaccine}
+covidcns_anovatable_ccv <- data_joined %>%
+  
+  # Remove pts missing cognitron
+  filter(!is.na(Composite_rt)) %>%
+  
+  # Mutate vaccine/control to NA, keep case and covid+/- controls
+  mutate(across(.cols = case_control_vaccine,
+                 .fns = ~case_when(str_detect(case_control_vaccine, "accine") ~ NA_character_,
+                                   . == "Control" ~ NA_character_,
+                                   TRUE ~ .)
+                )
+          ) %>%
+  
+  # Summary table
+  tbl_summary(
+    by = case_control_vaccine,
+    include = c(Composite_global, Composite_acc, Composite_rt),
+    statistic = list(all_continuous() ~ c("{mean} ({sd})")),
+    label = list(Composite_global ~ "Cognitron Global Score",
+                 Composite_acc ~ "Cognitron Accuracy Score",
+                 Composite_rt ~ "Cognitron RT Score")
+  ) %>%
+  
+  # Add one-way ANOVA
+  add_p(list(everything() ~ "aov"))
+
+# Save table as png image
+gt::gtsave(as_gt(covidcns_anovatable_ccv), file = "analysis/tables/anova/covidcns_anovatable_ccv.png")
+
+# View table
+covidcns_anovatable_ccv
+```
+
+ANOVA table for cognitron dfe scores by diagnostic group
+```{r ANOVA diag group}
+covidcns_anovatable_diag <- data_joined %>%
+  
+  # Remove pts missing cognitron
+  filter(!is.na(Composite_rt)) %>%
+  
+  # Summary table
+  tbl_summary(
+    by = diagnostic_group,
+    include = c(Composite_global, Composite_acc, Composite_rt),
+    statistic = list(all_continuous() ~ c("{mean} ({sd})")),
+    label = list(Composite_global ~ "Cognitron Global Score",
+                 Composite_acc ~ "Cognitron Accuracy Score",
+                 Composite_rt ~ "Cognitron RT Score")
+  ) %>%
+  
+  # Add one-way ANOVA
+  add_p(list(everything() ~ "aov"))
+
+# Save table as png image
+gt::gtsave(as_gt(covidcns_anovatable_diag), file = "analysis/tables/anova/covidcns_anovatable_diag.png")
+
+# View table
+covidcns_anovatable_diag
+```
+
+
+
+## T Test Tables
+
+T-test table for cognitron dfe scores by case/control/vaccine
+```{r T tesst case control vaccine}
+covidcns_ttesttable_ccv <- data_joined %>%
+  
+  # Remove pts missing cognitron
+  filter(!is.na(Composite_rt)) %>%
+  
+  # Mutate vaccine/control to NA, keep case and covid+/- controls
+  mutate(across(.cols = case_control_vaccine,
+                 .fns = ~case_when(str_detect(case_control_vaccine, "accine") ~ NA_character_,
+                                   . == "Control" ~ NA_character_,
+                                   . == "Control: COVID-19 negative (e.g. pneumonia, sepsis)" ~ NA_character_,
+                                   TRUE ~ .)
+                )
+          ) %>%
+  
+  # Summary table
+  tbl_summary(
+    by = case_control_vaccine,
+    include = c(Composite_global, Composite_acc, Composite_rt),
+    statistic = list(all_continuous() ~ c("{mean} ({sd})")),
+    label = list(Composite_global ~ "Cognitron Global Score",
+                 Composite_acc ~ "Cognitron Accuracy Score",
+                 Composite_rt ~ "Cognitron RT Score")
+  ) %>%
+  
+  # Add one-way ANOVA
+  add_p(list(everything() ~ "t.test"))
+
+# Save table as png image
+gt::gtsave(as_gt(covidcns_ttesttable_ccv), file = "analysis/tables/ttest/covidcns_ttesttable_ccv.png")
+
+# View table
+covidcns_ttesttable_ccv
+```
+
+
+T-test table for cognitron dfe scores by case/control/vaccine
+```{r T tesst case control vaccine}
+covidcns_ttesttable1_ccv <- data_joined %>%
+  
+  # Remove pts missing cognitron
+  filter(!is.na(Composite_rt)) %>%
+  
+  # Mutate vaccine/control to NA, keep case and covid+/- controls
+  mutate(across(.cols = case_control_vaccine,
+                 .fns = ~case_when(str_detect(case_control_vaccine, "accine") ~ NA_character_,
+                                   . == "Control" ~ NA_character_,
+                                   . == "Control: COVID-19 positive (i.e. NO neurological or psychiatric complication)" ~ NA_character_,
+                                   TRUE ~ .)
+                )
+          ) %>%
+  
+  # Summary table
+  tbl_summary(
+    by = case_control_vaccine,
+    include = c(Composite_global, Composite_acc, Composite_rt),
+    statistic = list(all_continuous() ~ c("{mean} ({sd})")),
+    label = list(Composite_global ~ "Cognitron Global Score",
+                 Composite_acc ~ "Cognitron Accuracy Score",
+                 Composite_rt ~ "Cognitron RT Score")
+  ) %>%
+  
+  # Add one-way ANOVA
+  add_p(list(everything() ~ "t.test"))
+
+# Save table as png image
+gt::gtsave(as_gt(covidcns_ttesttable1_ccv), file = "analysis/tables/ttest/covidcns_ttesttable1_ccv.png")
+
+# View table
+covidcns_ttesttable1_ccv
+```
+
+
+## Correlations
+
+
+Correlation Matrix and Plot
+```{r Correlation matrix of all variables}
+corr_dat <- data_joined %>%
+  select(
+    `Age` = "dem.dob_age",
+    `Sex` = "dem.sex_at_birth_numeric",
+    `Memory Concerns` = "dem.concerned_memory_numeric",
+    `Education` = "dem.highest_education_numeric",
+    `COVID19 Severity` = "ncrf1_vital.admission_severity_worst_covid19_numeric",
+    `Clinical Frailty` = "ncrf1_comorbid.clinical_frailty_scale_numeric",
+    `GAD7` = "gad7.sum_score",
+    `PHQ9` = "phq9.sum_score",
+    `PCL5` = "pcl5.sum_score",
+    `CFS` = "cfs.sum_score",
+    `Corticosteroids` = "ncrf2_med.corticosteroid_numeric"
+ ) 
+
+corr_out <- psych::mixedCor(data = corr_dat,
+                            c = c(1,3:11),
+                            d = c(2),
+                            use = "pairwise.complete.obs")
+
+corr_out_rmat <- corr_out$rho
+
+
+# Write file path to save plot
+png(file = "analysis/correlations/corr_matrix.png")
+# Create correlation matrix with hierarchical clustering
+corr_matrix_plot <- corrplot::corrplot(corr_out_rmat, 
+         method = "color", # objects to represent the correlations on plot
+         type = "lower", # only use the lower triangle of the matrix
+         diag = FALSE, # do not show the correlations on the diagonal
+         addgrid.col = NA,
+         addCoef.col = "black", # colour for the correlation coefficients in the plot
+         tl.cex = 1,
+         cl.cex = 1,
+         order = "original",
+         tl.col = "black",
+         cl.align.text = "c",
+         col=colorRampPalette(c("dodgerblue4","white","firebrick4"))(200), # colours for correlations
+         number.font = 0.5,
+         number.cex = 0.5, # size of co-efficients
+         sig.level = 0.01, # Choose significant level
+         insig = "blank", # Nonsignificant correlations have no colour,
+         bg = "white"
+         )
+# Save plot
+dev.off()
+
+```
+
+
+# Plots
+
+
+# Plots of Composite Scores
+
+
+Violin plot cognitron global by diagnostic group
+```{r violin plot global cognitron}
+pl1 <- ggplot(
+  data = subset(data_joined,!is.na(diagnostic_group) & !is.na(Composite_global)), # remove NAs from plotting vars
+  aes(x = diagnostic_group, y = Composite_global, fill = diagnostic_group) # plot and fill by diag group
+  )
+
+# violin plot
+pl1 <- pl1 + geom_violin(trim = F)
+
+# add summary stat line
+pl1 <- pl1 + stat_summary(fun.data=mean_sdl, # can use median_hilow instead
+                          geom="pointrange",
+                          color="cyan")
+
+pl1 <- pl1 + xlab("Diagnostic Group")
+
+pl1 <- pl1 + ylab("Cognitron Global Score (DfE)")
+
+pl1 <- pl1 + labs(fill = "Diagnostic Group")
+
+pl1 <- pl1 + scale_fill_brewer(palette = "Accent")
+
+pl1 <- pl1 + theme_bw()
+
+pl1 <- pl1 + 
+  ggtitle("Cognitron Global Score (DfE) by Diagnostic Group in the COVIDCNS Study") + 
+  theme(plot.title = element_text(hjust = 0),
+        axis.text.x = element_text(size = 9,
+                                   angle = 30,
+                                   hjust = 1))
+
+pl1
+
+ggsave("analysis/plots/bydiagnosis/cognitron_global_bydiag_violplot.png")
+```
+
+
+Violin plot cognitron accuracy by diagnostic group
+```{r violin plot acc cognitron}
+pl2 <- ggplot(data = subset(data_joined,
+                            !is.na(diagnostic_group) &
+                              !is.na(Composite_acc)),
+              aes(x = diagnostic_group,
+                  y = Composite_acc,
+                  fill = diagnostic_group))
+
+pl2 <- pl2 + geom_violin(trim = F)
+
+pl2 <- pl2 + stat_summary(fun.data=mean_sdl,
+                          geom="pointrange",
+                          color="cyan")
+
+pl2 <- pl2 + xlab("Diagnostic Group")
+
+pl2 <- pl2 + ylab("Cognitron Accuracy Score (DfE)")
+
+pl2 <- pl2 + labs(fill = "Diagnostic Group")
+
+pl2 <- pl2 + scale_fill_brewer(palette = "Accent")
+
+pl2 <- pl2 + theme_bw()
+
+pl2 <- pl2 +
+  ggtitle("Cognitron Accuracy Score (DfE) by Diagnostic Group in the COVIDCNS Study") +
+  theme(plot.title = element_text(hjust = 0),
+        axis.text.x = element_text(size = 9,
+                                   angle = 30,
+                                   hjust = 1))
+
+pl2
+
+ggsave("analysis/plots/bydiagnosis/cognitron_acc_bydiag_violplot.png")
+```
+
+Violin plot cognitron RT by diagnostic group
+```{r violin plot rt cognitron}
+pl3 <- ggplot(data = subset(data_joined,
+                            !is.na(diagnostic_group) &
+                              !is.na(Composite_rt)),
+              aes(x = diagnostic_group,
+                  y = Composite_rt,
+                  fill = diagnostic_group))
+
+pl3 <- pl3 + geom_violin(trim = F)
+
+pl3 <- pl3 + stat_summary(fun.data=mean_sdl,
+                          geom="pointrange",
+                          color="cyan")
+
+pl3 <- pl3 + xlab("Diagnostic Group")
+
+pl3 <- pl3 + ylab("Cognitron RT Score (DfE)")
+
+pl3 <- pl3 + labs(fill = "Diagnostic Group")
+
+pl3 <- pl3 + scale_fill_brewer(palette = "Accent")
+
+pl3 <- pl3 + theme_bw()
+
+pl3 <- pl3 + 
+  ggtitle("Cognitron RT Score (DfE) by Diagnostic Group in the COVIDCNS Study") + 
+  theme(plot.title = element_text(hjust = 0),
+        axis.text.x = element_text(size = 9,
+                                   angle = 30,
+                                   hjust = 1))
+
+pl3
+
+ggsave("analysis/plots/bydiagnosis/cognitron_rt_bydiag_violplot.png")
+```
+
+
+# Plots by Task
+
+
+Create vectors of cognitron task colnames
+```{r Vectors cognitron tasks}
+cogni_cols_demographics <- c(
+  "age1",
+  "age2",
+  "decade",
+  "sex",
+  "language",
+  "education",
+  "DEVICE"
+)
+
+cogni_cols_tasks <- c(
+  "rs_prospectiveMemoryWords_1_immediate",
+  "rs_spatialSpan",
+  "rs_manipulations2D",
+  "rs_verbalAnalogies",
+  "rs_prospectiveMemoryWords_1_delayed",
+  "rs_TOL",
+  "rs_targetDetection"
+)
+
+cogni_cols_tasks_RT <- c(
+  "rs_prospectiveMemoryWords_1_immediate_RT",
+  "rs_spatialSpan_RT",
+  "rs_manipulations2D_RT",
+  "rs_verbalAnalogies_RT",
+  "rs_prospectiveMemoryWords_1_delayed_RT",
+  "rs_TOL_RT",
+  "rs_targetDetection_RT"
+)
+
+cogni_cols_dfe_tasks <- c(
+  "rs_manipulations2D_dfe",
+  "rs_TOL_dfe",
+  "rs_prospectiveMemoryWords_1_delayed_dfe",
+  "rs_prospectiveMemoryWords_1_immediate_dfe",
+  "rs_spatialSpan_dfe",
+  "rs_targetDetection_dfe",
+  "rs_verbalAnalogies_dfe"
+)
+
+cogni_cols_dfe_tasks_RT <- c(
+  "rs_manipulations2D_RT_dfe",
+  "rs_TOL_RT_dfe",
+  "rs_prospectiveMemoryWords_1_delayed_RT_dfe",
+  "rs_prospectiveMemoryWords_1_immediate_RT_dfe",
+  "rs_spatialSpan_RT_dfe",
+  "rs_targetDetection_RT_dfe",
+  "rs_verbalAnalogies_RT_dfe"
+)
+
+cogni_tasks_dat <- data_joined %>%
+  select(
+    all_of(
+      cogni_cols_dfe_tasks
+    )
+  )
+
+cogni_RT_dat <- data_joined %>%
+  select(
+    all_of(
+      cogni_cols_dfe_tasks_RT
+    )
+  )
+```
+
+Subset tasks and RTs by case and control for plotting
+```{r Subset tasks RTs case control}
+cogni_tasks_case_dat <- data_joined %>%
+  filter(case_control_vaccine == "Case: COVID-19 positive (i.e. neurological or psychiatric complication)") %>%
+  select(
+    all_of(
+      cogni_cols_dfe_tasks
+    )
+  )
+
+cogni_tasks_control_dat <- data_joined %>%
+  filter(case_control_vaccine == "Control: COVID-19 positive (i.e. NO neurological or psychiatric complication)") %>%
+  select(
+    all_of(
+      cogni_cols_dfe_tasks
+    )
+  )
+
+cogni_RT_case_dat <- data_joined %>%
+  filter(case_control_vaccine == "Case: COVID-19 positive (i.e. neurological or psychiatric complication)") %>%
+  select(
+    all_of(
+      cogni_cols_dfe_tasks_RT
+    )
+  )
+
+cogni_RT_control_dat <- data_joined %>%
+  filter(case_control_vaccine == "Control: COVID-19 positive (i.e. NO neurological or psychiatric complication)") %>%
+  select(
+    all_of(
+      cogni_cols_dfe_tasks_RT
+    )
+  )
+```
+
+
+Transform cognitron tasks wide to long to plot by task
+```{r Transform wide long}
+cogni_tasks_case_dat <- cogni_tasks_case_dat %>%
+  drop_na() %>%
+  tidyr::pivot_longer(
+    cols = all_of(cogni_cols_dfe_tasks),
+    names_to = "task"
+  ) %>%
+  mutate(task = as.factor(task)) %>%
+  mutate(task = recode_factor(task,
+                              "rs_manipulations2D_dfe" = "2D Manipulations",
+                              "rs_TOL_dfe" = "TOL",
+                              "rs_prospectiveMemoryWords_1_delayed_dfe" = "Word Memory Delayed",
+                              "rs_prospectiveMemoryWords_1_immediate_dfe" = "Word Memory Immediate",
+                              "rs_spatialSpan_dfe" = "Spatial Span",
+                              "rs_targetDetection_dfe" = "Target Detection",
+                              "rs_verbalAnalogies_dfe" = "Verbal Analogies")
+                              
+         )
+
+cogni_tasks_control_dat <- cogni_tasks_control_dat %>%
+  drop_na() %>%
+  tidyr::pivot_longer(
+    cols = all_of(cogni_cols_dfe_tasks),
+    names_to = "task"
+  ) %>%
+  mutate(task = as.factor(task)) %>%
+  mutate(task = recode_factor(task,
+                              "rs_manipulations2D_dfe" = "2D Manipulations",
+                              "rs_TOL_dfe" = "TOL",
+                              "rs_prospectiveMemoryWords_1_delayed_dfe" = "Word Memory Delayed",
+                              "rs_prospectiveMemoryWords_1_immediate_dfe" = "Word Memory Immediate",
+                              "rs_spatialSpan_dfe" = "Spatial Span",
+                              "rs_targetDetection_dfe" = "Target Detection",
+                              "rs_verbalAnalogies_dfe" = "Verbal Analogies")
+                              
+         )
+
+cogni_RT_case_dat <- cogni_RT_case_dat %>%
+  drop_na() %>%
+  tidyr::pivot_longer(
+    cols = all_of(cogni_cols_dfe_tasks_RT),
+    names_to = "task"
+  ) %>%
+  mutate(task = as.factor(task)) %>%
+  mutate(task = recode_factor(task,
+                              "rs_manipulations2D_RT_dfe" = "2D Manipulations RT",
+                              "rs_TOL_RT_dfe" = "TOL RT",
+                              "rs_prospectiveMemoryWords_1_delayed_RT_dfe" = "Word Memory Delayed RT",
+                              "rs_prospectiveMemoryWords_1_immediate_RT_dfe" = "Word Memory Immediate RT",
+                              "rs_spatialSpan_RT_dfe" = "Spatial Span RT",
+                              "rs_targetDetection_RT_dfe" = "Target Detection RT",
+                              "rs_verbalAnalogies_RT_dfe" = "Verbal Analogies RT")
+                              
+         )
+
+cogni_RT_control_dat <- cogni_RT_control_dat %>%
+  drop_na() %>%
+  tidyr::pivot_longer(
+    cols = all_of(cogni_cols_dfe_tasks_RT),
+    names_to = "task"
+  ) %>%
+  mutate(task = as.factor(task)) %>%
+  mutate(task = recode_factor(task,
+                              "rs_manipulations2D_RT_dfe" = "2D Manipulations RT",
+                              "rs_TOL_RT_dfe" = "TOL RT",
+                              "rs_prospectiveMemoryWords_1_delayed_RT_dfe" = "Word Memory Delayed RT",
+                              "rs_prospectiveMemoryWords_1_immediate_RT_dfe" = "Word Memory Immediate RT",
+                              "rs_spatialSpan_RT_dfe" = "Spatial Span RT",
+                              "rs_targetDetection_RT_dfe" = "Target Detection RT",
+                              "rs_verbalAnalogies_RT_dfe" = "Verbal Analogies RT")
+                              
+         )
+```
+
+
+Violin plot cognitron tasks for cases only
+```{r violin plot tasks cognitron cases}
+pl4 <- ggplot(data = cogni_tasks_case_dat,
+              aes(x = task,
+                  y = value,
+                  fill = task))
+
+pl4 <- pl4 + geom_violin(trim = F)
+
+pl4 <- pl4 + stat_summary(fun.data=mean_sdl,
+                          geom="pointrange",
+                          color="cyan")
+
+pl4 <- pl4 + xlab("Task")
+
+pl4 <- pl4 + scale_y_continuous(name = "Cognitron Task Score (DfE)",
+                              breaks = seq(-10, 5, 2),
+                              limits = c(-10, 5))
+
+pl4 <- pl4 + labs(fill = "Task")
+
+pl4 <- pl4 + scale_fill_brewer(palette = "Accent")
+
+pl4 <- pl4 + theme_bw()
+
+pl4 <- pl4 +
+  ggtitle("Cognitron Score (DfE) for Cases by Task in the COVIDCNS Study") +
+  theme(plot.title = element_text(hjust = 0),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+pl4
+
+ggsave("analysis/plots/bytask/cognitron_bytask_cases_dfe_violplot.png")
+```
+
+Violin plot cognitron tasks for controls only
+```{r violin plot tasks cognitron controls}
+pl5 <- ggplot(data = cogni_tasks_control_dat,
+              aes(x = task,
+                  y = value,
+                  fill = task))
+
+pl5 <- pl5 + geom_violin(trim = F)
+
+pl5 <- pl5 + stat_summary(fun.data=mean_sdl,
+                          geom="pointrange",
+                          color="cyan")
+
+pl5 <- pl5 + xlab("Task")
+
+pl5 <- pl5 + scale_y_continuous(name = "Cognitron Task Score (DfE)",
+                              breaks = seq(-10, 5, 2),
+                              limits = c(-10, 5))
+
+pl5 <- pl5 + labs(fill = "Task")
+
+pl5 <- pl5 + scale_fill_brewer(palette = "Accent")
+
+pl5 <- pl5 + theme_bw()
+
+pl5 <- pl5 +
+  ggtitle("Cognitron Score (DfE) for Controls by Task in the COVIDCNS Study") +
+  theme(plot.title = element_text(hjust = 0),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+pl5
+
+ggsave("analysis/plots/bytask/cognitron_bytask_controls_dfe_violplot.png")
+```
+
+Violin plot cognitron RTs for cases only
+```{r violin plot RTs cognitron cases}
+pl6 <- ggplot(data = cogni_RT_case_dat,
+              aes(x = task,
+                  y = value,
+                  fill = task))
+
+pl6 <- pl6 + geom_violin(trim = F)
+
+pl6 <- pl6 + stat_summary(fun.data=mean_sdl,
+                          geom="pointrange",
+                          color="cyan")
+
+pl6 <- pl6 + xlab("Task")
+
+pl6 <- pl6 + scale_y_continuous(name = "Cognitron RT (DfE)",
+                              breaks = seq(-8, 30, 2),
+                              limits = c(-8, 30))
+
+pl6 <- pl6 + labs(fill = "Task")
+
+pl6 <- pl6 + scale_fill_brewer(palette = "Accent")
+
+pl6 <- pl6 + theme_bw()
+
+pl6 <- pl6 +
+  ggtitle("Cognitron RTs (DfE) for Cases by Task in the COVIDCNS Study") +
+  theme(plot.title = element_text(hjust = 0),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+pl6
+
+ggsave("analysis/plots/bytask/cognitron_bytaskRT_cases_dfe_violplot.png")
+```
+
+Violin plot cognitron RTs for controls only
+```{r violin plot RTs cognitron controls}
+pl7 <- ggplot(data = cogni_RT_control_dat,
+              aes(x = task,
+                  y = value,
+                  fill = task))
+
+pl7 <- pl7 + geom_violin(trim = F)
+
+pl7 <- pl7 + stat_summary(fun.data=mean_sdl,
+                          geom="pointrange",
+                          color="cyan")
+
+pl7 <- pl7 + xlab("Task")
+
+pl7 <- pl7 + scale_y_continuous(name = "Cognitron RT (DfE)",
+                              breaks = seq(-8, 30, 2),
+                              limits = c(-8, 30))
+
+pl7 <- pl7 + labs(fill = "Task")
+
+pl7 <- pl7 + scale_fill_brewer(palette = "Accent")
+
+pl7 <- pl7 + theme_bw()
+
+pl7 <- pl7 +
+  ggtitle("Cognitron RTs (DfE) for Controls by Task in the COVIDCNS Study") +
+  theme(plot.title = element_text(hjust = 0),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+pl7
+
+ggsave("analysis/plots/bytask/cognitron_bytaskRT_controls_dfe_violplot.png")
+```
+
+# Multiplots
+
+Multiplot into single objects
+```{r Multiplots}
+pl8 <- cowplot::plot_grid(pl1, pl2, pl3, nrow = 1)
+as.png(pl8, filename = "analysis/multiplots/cognitron_multiplot_diagscores.png" , width = 45, height = 15, scaled = TRUE)
+
+pl9 <- cowplot::plot_grid(pl4, pl5)
+as.png(pl9, filename = "analysis/multiplots/cognitron_multiplot_scores.png" , width = 30, height = 15, scaled = TRUE)
+
+pl10 <- cowplot::plot_grid(pl6, pl7)
+as.png(pl10, filename = "analysis/multiplots/cognitron_multiplot_RTs.png" , width = 30, height = 15, scaled = TRUE)
+```
+
+
+
+
+
+
+```{r}
+cowplot::plot_grid(pl4, pl5)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

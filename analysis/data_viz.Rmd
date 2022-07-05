@@ -1,0 +1,520 @@
+---
+title: "COVIDCNS Cognitive Analysis Data Visualisation"
+author: "Zain Ahmad"
+date: '2022-07-05'
+output: html_document
+---
+
+Configure global options for all chunks
+```{r Setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  comment = '',
+  prompt = FALSE,
+  cache = FALSE
+  )
+```
+
+Clear global environment prior to initiation
+```{r Clear global environment}
+remove(list = ls())
+```
+
+Add the package_check function - used to install and load dependencies
+```{r Read in functions}
+source(file = "scripts/functions/package_check.R")
+```
+
+Use package_check to install and load dependencies
+Load tidyverse last
+```{r Install load dependencies}
+packages <- c("sjlabelled",
+              "gtsummary",
+              "tidyverse")
+
+package_check(packages)
+```
+
+Read in file with path to ilovecovidcns channel on Teams
+Ensure that your credentials directory is correctly located
+```{r Source filepath to ilovecovidcns OneDrive}
+source(file = "credentials/paths.R")
+```
+
+# Read in clean data
+
+COVIDCNS data
+```{r COVIDCNS load data}
+dat <- read_rds(
+  file = paste0(ilovecovidcns, "/data/covidcns_cognitive_data.rds")
+  )
+  
+# Check variable names in dataframe
+dat %>%
+  colnames()
+
+# Inspect dimensions of dataframe 
+dat %>%
+  dim()
+```
+
+
+
+# Plots
+
+
+# Plots of Composite Scores
+
+
+Violin plot cognitron global by diagnostic group
+```{r violin plot global cognitron}
+pl1 <- ggplot(
+  data = subset(dat,!is.na(diagnostic_group) & !is.na(Composite_global)), # remove NAs from plotting vars
+  aes(x = diagnostic_group, y = Composite_global, fill = diagnostic_group) # plot and fill by diag group
+  )
+
+# violin plot
+pl1 <- pl1 + geom_violin(trim = F)
+
+# add summary stat line
+pl1 <- pl1 + stat_summary(fun.data=mean_sdl, # can use median_hilow instead
+                          geom="pointrange",
+                          color="cyan")
+
+pl1 <- pl1 + xlab("Diagnostic Group")
+
+pl1 <- pl1 + ylab("Cognitron Global Score (DfE)")
+
+pl1 <- pl1 + labs(fill = "Diagnostic Group")
+
+pl1 <- pl1 + scale_fill_brewer(palette = "Accent")
+
+pl1 <- pl1 + theme_bw()
+
+pl1 <- pl1 + 
+  ggtitle("Cognitron Global Score (DfE) by Diagnostic Group in the COVIDCNS Study") + 
+  theme(plot.title = element_text(hjust = 0),
+        axis.text.x = element_text(size = 9,
+                                   angle = 30,
+                                   hjust = 1))
+
+pl1
+
+ggsave("plots/bydiagnosis/cognitron_global_bydiag_violplot.png")
+```
+
+
+Violin plot cognitron accuracy by diagnostic group
+```{r violin plot acc cognitron}
+pl2 <- ggplot(data = subset(dat,
+                            !is.na(diagnostic_group) &
+                              !is.na(Composite_acc)),
+              aes(x = diagnostic_group,
+                  y = Composite_acc,
+                  fill = diagnostic_group))
+
+pl2 <- pl2 + geom_violin(trim = F)
+
+pl2 <- pl2 + stat_summary(fun.data=mean_sdl,
+                          geom="pointrange",
+                          color="cyan")
+
+pl2 <- pl2 + xlab("Diagnostic Group")
+
+pl2 <- pl2 + ylab("Cognitron Accuracy Score (DfE)")
+
+pl2 <- pl2 + labs(fill = "Diagnostic Group")
+
+pl2 <- pl2 + scale_fill_brewer(palette = "Accent")
+
+pl2 <- pl2 + theme_bw()
+
+pl2 <- pl2 +
+  ggtitle("Cognitron Accuracy Score (DfE) by Diagnostic Group in the COVIDCNS Study") +
+  theme(plot.title = element_text(hjust = 0),
+        axis.text.x = element_text(size = 9,
+                                   angle = 30,
+                                   hjust = 1))
+
+pl2
+
+ggsave("plots/bydiagnosis/cognitron_acc_bydiag_violplot.png")
+```
+
+Violin plot cognitron RT by diagnostic group
+```{r violin plot rt cognitron}
+pl3 <- ggplot(data = subset(dat,
+                            !is.na(diagnostic_group) &
+                              !is.na(Composite_rt)),
+              aes(x = diagnostic_group,
+                  y = Composite_rt,
+                  fill = diagnostic_group))
+
+pl3 <- pl3 + geom_violin(trim = F)
+
+pl3 <- pl3 + stat_summary(fun.data=mean_sdl,
+                          geom="pointrange",
+                          color="cyan")
+
+pl3 <- pl3 + xlab("Diagnostic Group")
+
+pl3 <- pl3 + ylab("Cognitron RT Score (DfE)")
+
+pl3 <- pl3 + labs(fill = "Diagnostic Group")
+
+pl3 <- pl3 + scale_fill_brewer(palette = "Accent")
+
+pl3 <- pl3 + theme_bw()
+
+pl3 <- pl3 + 
+  ggtitle("Cognitron RT Score (DfE) by Diagnostic Group in the COVIDCNS Study") + 
+  theme(plot.title = element_text(hjust = 0),
+        axis.text.x = element_text(size = 9,
+                                   angle = 30,
+                                   hjust = 1))
+
+pl3
+
+ggsave("plots/bydiagnosis/cognitron_rt_bydiag_violplot.png")
+```
+
+
+# Plots by Task
+
+
+Create vectors of cognitron task colnames
+```{r Vectors cognitron tasks}
+cogni_cols_demographics <- c(
+  "age1",
+  "age2",
+  "decade",
+  "sex",
+  "language",
+  "education",
+  "DEVICE"
+)
+
+cogni_cols_tasks <- c(
+  "rs_prospectiveMemoryWords_1_immediate",
+  "rs_spatialSpan",
+  "rs_manipulations2D",
+  "rs_verbalAnalogies",
+  "rs_prospectiveMemoryWords_1_delayed",
+  "rs_TOL",
+  "rs_targetDetection"
+)
+
+cogni_cols_tasks_RT <- c(
+  "rs_prospectiveMemoryWords_1_immediate_RT",
+  "rs_spatialSpan_RT",
+  "rs_manipulations2D_RT",
+  "rs_verbalAnalogies_RT",
+  "rs_prospectiveMemoryWords_1_delayed_RT",
+  "rs_TOL_RT",
+  "rs_targetDetection_RT"
+)
+
+cogni_cols_dfe_tasks <- c(
+  "rs_manipulations2D_dfe",
+  "rs_TOL_dfe",
+  "rs_prospectiveMemoryWords_1_delayed_dfe",
+  "rs_prospectiveMemoryWords_1_immediate_dfe",
+  "rs_spatialSpan_dfe",
+  "rs_targetDetection_dfe",
+  "rs_verbalAnalogies_dfe"
+)
+
+cogni_cols_dfe_tasks_RT <- c(
+  "rs_manipulations2D_RT_dfe",
+  "rs_TOL_RT_dfe",
+  "rs_prospectiveMemoryWords_1_delayed_RT_dfe",
+  "rs_prospectiveMemoryWords_1_immediate_RT_dfe",
+  "rs_spatialSpan_RT_dfe",
+  "rs_targetDetection_RT_dfe",
+  "rs_verbalAnalogies_RT_dfe"
+)
+
+cogni_tasks_dat <- dat %>%
+  select(
+    all_of(
+      cogni_cols_dfe_tasks
+    )
+  )
+
+cogni_RT_dat <- dat %>%
+  select(
+    all_of(
+      cogni_cols_dfe_tasks_RT
+    )
+  )
+```
+
+Subset tasks and RTs by case and control for plotting
+```{r Subset tasks RTs case control}
+cogni_tasks_case_dat <- dat %>%
+  filter(case_control_vaccine == "Case: COVID-19 positive (i.e. neurological or psychiatric complication)") %>%
+  select(
+    all_of(
+      cogni_cols_dfe_tasks
+    )
+  )
+
+cogni_tasks_control_dat <- dat %>%
+  filter(case_control_vaccine == "Control: COVID-19 positive (i.e. NO neurological or psychiatric complication)") %>%
+  select(
+    all_of(
+      cogni_cols_dfe_tasks
+    )
+  )
+
+cogni_RT_case_dat <- dat %>%
+  filter(case_control_vaccine == "Case: COVID-19 positive (i.e. neurological or psychiatric complication)") %>%
+  select(
+    all_of(
+      cogni_cols_dfe_tasks_RT
+    )
+  )
+
+cogni_RT_control_dat <- dat %>%
+  filter(case_control_vaccine == "Control: COVID-19 positive (i.e. NO neurological or psychiatric complication)") %>%
+  select(
+    all_of(
+      cogni_cols_dfe_tasks_RT
+    )
+  )
+```
+
+
+Transform cognitron tasks wide to long to plot by task
+```{r Transform wide long}
+cogni_tasks_case_dat <- cogni_tasks_case_dat %>%
+  drop_na() %>%
+  tidyr::pivot_longer(
+    cols = all_of(cogni_cols_dfe_tasks),
+    names_to = "task"
+  ) %>%
+  mutate(task = as.factor(task)) %>%
+  mutate(task = recode_factor(task,
+                              "rs_manipulations2D_dfe" = "2D Manipulations",
+                              "rs_TOL_dfe" = "TOL",
+                              "rs_prospectiveMemoryWords_1_delayed_dfe" = "Word Memory Delayed",
+                              "rs_prospectiveMemoryWords_1_immediate_dfe" = "Word Memory Immediate",
+                              "rs_spatialSpan_dfe" = "Spatial Span",
+                              "rs_targetDetection_dfe" = "Target Detection",
+                              "rs_verbalAnalogies_dfe" = "Verbal Analogies")
+                              
+         )
+
+cogni_tasks_control_dat <- cogni_tasks_control_dat %>%
+  drop_na() %>%
+  tidyr::pivot_longer(
+    cols = all_of(cogni_cols_dfe_tasks),
+    names_to = "task"
+  ) %>%
+  mutate(task = as.factor(task)) %>%
+  mutate(task = recode_factor(task,
+                              "rs_manipulations2D_dfe" = "2D Manipulations",
+                              "rs_TOL_dfe" = "TOL",
+                              "rs_prospectiveMemoryWords_1_delayed_dfe" = "Word Memory Delayed",
+                              "rs_prospectiveMemoryWords_1_immediate_dfe" = "Word Memory Immediate",
+                              "rs_spatialSpan_dfe" = "Spatial Span",
+                              "rs_targetDetection_dfe" = "Target Detection",
+                              "rs_verbalAnalogies_dfe" = "Verbal Analogies")
+                              
+         )
+
+cogni_RT_case_dat <- cogni_RT_case_dat %>%
+  drop_na() %>%
+  tidyr::pivot_longer(
+    cols = all_of(cogni_cols_dfe_tasks_RT),
+    names_to = "task"
+  ) %>%
+  mutate(task = as.factor(task)) %>%
+  mutate(task = recode_factor(task,
+                              "rs_manipulations2D_RT_dfe" = "2D Manipulations RT",
+                              "rs_TOL_RT_dfe" = "TOL RT",
+                              "rs_prospectiveMemoryWords_1_delayed_RT_dfe" = "Word Memory Delayed RT",
+                              "rs_prospectiveMemoryWords_1_immediate_RT_dfe" = "Word Memory Immediate RT",
+                              "rs_spatialSpan_RT_dfe" = "Spatial Span RT",
+                              "rs_targetDetection_RT_dfe" = "Target Detection RT",
+                              "rs_verbalAnalogies_RT_dfe" = "Verbal Analogies RT")
+                              
+         )
+
+cogni_RT_control_dat <- cogni_RT_control_dat %>%
+  drop_na() %>%
+  tidyr::pivot_longer(
+    cols = all_of(cogni_cols_dfe_tasks_RT),
+    names_to = "task"
+  ) %>%
+  mutate(task = as.factor(task)) %>%
+  mutate(task = recode_factor(task,
+                              "rs_manipulations2D_RT_dfe" = "2D Manipulations RT",
+                              "rs_TOL_RT_dfe" = "TOL RT",
+                              "rs_prospectiveMemoryWords_1_delayed_RT_dfe" = "Word Memory Delayed RT",
+                              "rs_prospectiveMemoryWords_1_immediate_RT_dfe" = "Word Memory Immediate RT",
+                              "rs_spatialSpan_RT_dfe" = "Spatial Span RT",
+                              "rs_targetDetection_RT_dfe" = "Target Detection RT",
+                              "rs_verbalAnalogies_RT_dfe" = "Verbal Analogies RT")
+                              
+         )
+```
+
+
+Violin plot cognitron tasks for cases only
+```{r violin plot tasks cognitron cases}
+pl4 <- ggplot(data = cogni_tasks_case_dat,
+              aes(x = task,
+                  y = value,
+                  fill = task))
+
+pl4 <- pl4 + geom_violin(trim = F)
+
+pl4 <- pl4 + stat_summary(fun.data=mean_sdl,
+                          geom="pointrange",
+                          color="cyan")
+
+pl4 <- pl4 + xlab("Task")
+
+pl4 <- pl4 + scale_y_continuous(name = "Cognitron Task Score (DfE)",
+                              breaks = seq(-10, 5, 2),
+                              limits = c(-10, 5))
+
+pl4 <- pl4 + labs(fill = "Task")
+
+pl4 <- pl4 + scale_fill_brewer(palette = "Accent")
+
+pl4 <- pl4 + theme_bw()
+
+pl4 <- pl4 +
+  ggtitle("Cognitron Score (DfE) for Cases by Task in the COVIDCNS Study") +
+  theme(plot.title = element_text(hjust = 0),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+pl4
+
+ggsave("plots/bytask/cognitron_bytask_cases_dfe_violplot.png")
+```
+
+Violin plot cognitron tasks for controls only
+```{r violin plot tasks cognitron controls}
+pl5 <- ggplot(data = cogni_tasks_control_dat,
+              aes(x = task,
+                  y = value,
+                  fill = task))
+
+pl5 <- pl5 + geom_violin(trim = F)
+
+pl5 <- pl5 + stat_summary(fun.data=mean_sdl,
+                          geom="pointrange",
+                          color="cyan")
+
+pl5 <- pl5 + xlab("Task")
+
+pl5 <- pl5 + scale_y_continuous(name = "Cognitron Task Score (DfE)",
+                              breaks = seq(-10, 5, 2),
+                              limits = c(-10, 5))
+
+pl5 <- pl5 + labs(fill = "Task")
+
+pl5 <- pl5 + scale_fill_brewer(palette = "Accent")
+
+pl5 <- pl5 + theme_bw()
+
+pl5 <- pl5 +
+  ggtitle("Cognitron Score (DfE) for Controls by Task in the COVIDCNS Study") +
+  theme(plot.title = element_text(hjust = 0),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+pl5
+
+ggsave("plots/bytask/cognitron_bytask_controls_dfe_violplot.png")
+```
+
+Violin plot cognitron RTs for cases only
+```{r violin plot RTs cognitron cases}
+pl6 <- ggplot(data = cogni_RT_case_dat,
+              aes(x = task,
+                  y = value,
+                  fill = task))
+
+pl6 <- pl6 + geom_violin(trim = F)
+
+pl6 <- pl6 + stat_summary(fun.data=mean_sdl,
+                          geom="pointrange",
+                          color="cyan")
+
+pl6 <- pl6 + xlab("Task")
+
+pl6 <- pl6 + scale_y_continuous(name = "Cognitron RT (DfE)",
+                              breaks = seq(-8, 30, 2),
+                              limits = c(-8, 30))
+
+pl6 <- pl6 + labs(fill = "Task")
+
+pl6 <- pl6 + scale_fill_brewer(palette = "Accent")
+
+pl6 <- pl6 + theme_bw()
+
+pl6 <- pl6 +
+  ggtitle("Cognitron RTs (DfE) for Cases by Task in the COVIDCNS Study") +
+  theme(plot.title = element_text(hjust = 0),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+pl6
+
+ggsave("plots/bytask/cognitron_bytaskRT_cases_dfe_violplot.png")
+```
+
+Violin plot cognitron RTs for controls only
+```{r violin plot RTs cognitron controls}
+pl7 <- ggplot(data = cogni_RT_control_dat,
+              aes(x = task,
+                  y = value,
+                  fill = task))
+
+pl7 <- pl7 + geom_violin(trim = F)
+
+pl7 <- pl7 + stat_summary(fun.data=mean_sdl,
+                          geom="pointrange",
+                          color="cyan")
+
+pl7 <- pl7 + xlab("Task")
+
+pl7 <- pl7 + scale_y_continuous(name = "Cognitron RT (DfE)",
+                              breaks = seq(-8, 30, 2),
+                              limits = c(-8, 30))
+
+pl7 <- pl7 + labs(fill = "Task")
+
+pl7 <- pl7 + scale_fill_brewer(palette = "Accent")
+
+pl7 <- pl7 + theme_bw()
+
+pl7 <- pl7 +
+  ggtitle("Cognitron RTs (DfE) for Controls by Task in the COVIDCNS Study") +
+  theme(plot.title = element_text(hjust = 0),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank())
+
+pl7
+
+ggsave("plots/bytask/cognitron_bytaskRT_controls_dfe_violplot.png")
+```
+
+# Multiplots
+
+Multiplot into single objects
+```{r Multiplots}
+pl8 <- cowplot::plot_grid(pl1, pl2, pl3, nrow = 1)
+as.png(pl8, filename = "multiplots/cognitron_multiplot_diagscores.png" , width = 45, height = 15, scaled = TRUE)
+
+pl9 <- cowplot::plot_grid(pl4, pl5)
+as.png(pl9, filename = "multiplots/cognitron_multiplot_scores.png" , width = 30, height = 15, scaled = TRUE)
+
+pl10 <- cowplot::plot_grid(pl6, pl7)
+as.png(pl10, filename = "multiplots/cognitron_multiplot_RTs.png" , width = 30, height = 15, scaled = TRUE)
+```

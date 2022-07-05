@@ -1,0 +1,1 @@
+ilovecovidcns <- "/Users/zainahmad/Library/CloudStorage/OneDrive-SharedLibraries-King'sCollegeLondon/TNG-Public - ilovecovidcns - ilovecovidcns/data_sharing/liverpool/covidcns-cog-analysis"

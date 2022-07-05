@@ -1,0 +1,132 @@
+---
+title: "COVIDCNS Cognitive Analysis ETL Script"
+author: "Zain Ahmad"
+date: '2022-07-05'
+output: html_document
+---
+
+Configure global options for all chunks
+```{r Setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  comment = '',
+  prompt = FALSE,
+  cache = FALSE
+  )
+```
+
+Clear global environment prior to initiation
+```{r Clear global environment}
+remove(list = ls())
+```
+
+Add the package_check function - used to install and load dependencies
+```{r Read in functions}
+source(file = "functions/package_check.R")
+```
+
+Use package_check to install and load dependencies
+Load tidyverse last
+```{r Install load dependencies}
+packages <- c("sjlabelled",
+              "tidyverse")
+
+package_check(packages)
+```
+
+Read in file with path to ilovecovidcns channel on Teams
+Ensure that your credentials directory is correctly located
+```{r Source filepath to ilovecovidcns OneDrive}
+source(file = "credentials/paths.R")
+```
+
+# Read in raw data
+
+COVIDCNS data
+```{r COVIDCNS load data}
+dat <- read_rds(
+  file = paste0(ilovecovidcns, "/data_raw/covidcns_greta.rds")
+  )
+
+# Inspect dimensions of dataframe 
+dat %>%
+  dim()
+```
+
+Recode Non-answer values to NA
+-555 'Not applicable' response from participant
+-777 Seen but not answered
+-888 Don't know
+-999 Prefer not to answer/Prefer not to say
+`NA` Were not shown the question (genuinely missing value)
+When we code someone as being 'not applicable' by deduction, we use `NA_real_`
+```{r Recode NA values}
+dat <- dat %>%
+  mutate(across(where(is.numeric),
+                ~case_when(
+                  . == -555 ~ NA_real_,
+                  . == -777 ~ NA_real_,
+                  . == -888 ~ NA_real_,
+                  . == -999 ~ NA_real_,
+                  TRUE ~ .)
+                )
+         )
+
+dat <- dat %>%
+  mutate(across(where(is.character),
+                ~case_when(
+                  . == "Not applicable" ~ NA_character_,
+                  . == "Seen but not answered" ~ NA_character_,
+                  . == "Don't know" ~ NA_character_,
+                  . == "Prefer not to answer" ~ NA_character_,
+                  . == "Prefer not to say" ~ NA_character_,
+                  TRUE ~ .)
+                )
+         )
+```
+
+Add windowed inpatient admission variable
+```{r Window inpatient admission}
+dat <- dat %>%
+  mutate(
+    ncrf1_admission_windowed =
+      case_when(ncrf1_admission.date_of_inpatient_admission.txt >= as.POSIXct("2020-03-01") & ncrf1_admission.date_of_inpatient_admission.txt <= as.POSIXct("2020-09-01")  ~ "March 2020 to August 2020",
+                
+                ncrf1_admission.date_of_inpatient_admission.txt >= as.POSIXct("2020-09-01") & ncrf1_admission.date_of_inpatient_admission.txt < as.POSIXct("2021-03-01")  ~ "September 2020 to February 2021",
+                
+                ncrf1_admission.date_of_inpatient_admission.txt >= as.POSIXct("2021-03-01") & ncrf1_admission.date_of_inpatient_admission.txt < as.POSIXct("2021-09-01")  ~ "March 2021 to August 2021",
+                
+                ncrf1_admission.date_of_inpatient_admission.txt >= as.POSIXct("2021-09-01") & ncrf1_admission.date_of_inpatient_admission.txt < as.POSIXct("2022-03-01")  ~ "September 2021 to February 2022",
+                is.na(ncrf1_admission.date_of_inpatient_admission.txt) ~ "Missing",
+                ncrf1_admission.date_of_inpatient_admission.txt < as.POSIXct("2020-03-01") | ncrf1_admission.date_of_inpatient_admission.txt >= as.POSIXct("2022-03-01")  ~ "Other"
+                )
+    )
+```
+
+Simplify COVID19 severity
+```{r Simplify severity}
+dat <- dat %>%
+  mutate(across(ncrf1_vital.admission_severity_worst_covid19,
+                ~case_when(
+        . == "Uninfected (No viral RNA detected)" ~ "Uninfected",
+        . == "Asymptomatic (Viral RNA detected)" |
+          . == "Symptomatic (Independent)"	|
+          . == "Symptomatic (Assistance needed)" ~ "Ambulatory mild disease",
+        . == "Hospitalised (No oxygen therapy)" |
+          . == "Hospitalised (Oxygen by mask or nasal prongs)" ~ "Hospitalised: moderate disease",
+        . == "Hospitalised (Oxygen by NIV or high flow)" |
+          . == "Intubation and mechanical ventilation (pO2/FiO2 >= 150 or SpO2/FiO2 >= 200)" |
+          . == "Mechanical ventilation (pO2/FiO2 <150 or SpO2/FiO2 <200 or vasopressors)" |
+          . == "Mechanical ventilation (pO2/FiO2 <150 and vasopressors, dialysis or ECMO)" ~ "Hospitalised: severe disease",
+        is.na(.) ~ NA_character_)
+        )
+    )
+```
+
+Save data
+```{r Write to .rds file}
+dat %>%
+  saveRDS(
+    file = paste0(ilovecovidcns, "/data/covidcns_cognitive_data.rds")
+    )
+```

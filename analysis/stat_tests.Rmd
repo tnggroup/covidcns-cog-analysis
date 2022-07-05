@@ -1,0 +1,201 @@
+---
+title: "COVIDCNS Cognitive Analysis Statistical Tests"
+author: "Zain Ahmad"
+date: '2022-07-05'
+output: html_document
+---
+
+Configure global options for all chunks
+```{r Setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  comment = '',
+  prompt = FALSE,
+  cache = FALSE
+  )
+```
+
+Clear global environment prior to initiation
+```{r Clear global environment}
+remove(list = ls())
+```
+
+Add the package_check function - used to install and load dependencies
+```{r Read in functions}
+source(file = "scripts/functions/package_check.R")
+```
+
+Use package_check to install and load dependencies
+Load tidyverse last
+```{r Install load dependencies}
+packages <- c("sjlabelled",
+              "gtsummary",
+              "tidyverse")
+
+package_check(packages)
+```
+
+Read in file with path to ilovecovidcns channel on Teams
+Ensure that your credentials directory is correctly located
+```{r Source filepath to ilovecovidcns OneDrive}
+source(file = "credentials/paths.R")
+```
+
+# Read in clean data
+
+COVIDCNS data
+```{r COVIDCNS load data}
+dat <- read_rds(
+  file = paste0(ilovecovidcns, "/data/covidcns_cognitive_data.rds")
+  )
+  
+# Check variable names in dataframe
+dat %>%
+  colnames()
+
+# Inspect dimensions of dataframe 
+dat %>%
+  dim()
+```
+
+## ANOVA
+
+
+ANOVA table for cognitron dfe scores by case/control/vaccine
+```{r ANOVA case control vaccine}
+covidcns_anovatable_ccv <- data_joined %>%
+  
+  # Remove pts missing cognitron
+  filter(!is.na(Composite_rt)) %>%
+  
+  # Mutate vaccine/control to NA, keep case and covid+/- controls
+  mutate(across(.cols = case_control_vaccine,
+                 .fns = ~case_when(str_detect(case_control_vaccine, "accine") ~ NA_character_,
+                                   . == "Control" ~ NA_character_,
+                                   TRUE ~ .)
+                )
+          ) %>%
+  
+  # Summary table
+  tbl_summary(
+    by = case_control_vaccine,
+    include = c(Composite_global, Composite_acc, Composite_rt),
+    statistic = list(all_continuous() ~ c("{mean} ({sd})")),
+    label = list(Composite_global ~ "Cognitron Global Score",
+                 Composite_acc ~ "Cognitron Accuracy Score",
+                 Composite_rt ~ "Cognitron RT Score")
+  ) %>%
+  
+  # Add one-way ANOVA
+  add_p(list(everything() ~ "aov"))
+
+# Save table as png image
+gt::gtsave(as_gt(covidcns_anovatable_ccv), file = "analysis/tables/anova/covidcns_anovatable_ccv.png")
+
+# View table
+covidcns_anovatable_ccv
+```
+
+ANOVA table for cognitron dfe scores by diagnostic group
+```{r ANOVA diag group}
+covidcns_anovatable_diag <- data_joined %>%
+  
+  # Remove pts missing cognitron
+  filter(!is.na(Composite_rt)) %>%
+  
+  # Summary table
+  tbl_summary(
+    by = diagnostic_group,
+    include = c(Composite_global, Composite_acc, Composite_rt),
+    statistic = list(all_continuous() ~ c("{mean} ({sd})")),
+    label = list(Composite_global ~ "Cognitron Global Score",
+                 Composite_acc ~ "Cognitron Accuracy Score",
+                 Composite_rt ~ "Cognitron RT Score")
+  ) %>%
+  
+  # Add one-way ANOVA
+  add_p(list(everything() ~ "aov"))
+
+# Save table as png image
+gt::gtsave(as_gt(covidcns_anovatable_diag), file = "analysis/tables/anova/covidcns_anovatable_diag.png")
+
+# View table
+covidcns_anovatable_diag
+```
+
+
+
+## T Test Tables
+
+T-test table for cognitron dfe scores by case/control/vaccine
+```{r T tesst case control vaccine}
+covidcns_ttesttable_ccv <- data_joined %>%
+  
+  # Remove pts missing cognitron
+  filter(!is.na(Composite_rt)) %>%
+  
+  # Mutate vaccine/control to NA, keep case and covid+/- controls
+  mutate(across(.cols = case_control_vaccine,
+                 .fns = ~case_when(str_detect(case_control_vaccine, "accine") ~ NA_character_,
+                                   . == "Control" ~ NA_character_,
+                                   . == "Control: COVID-19 negative (e.g. pneumonia, sepsis)" ~ NA_character_,
+                                   TRUE ~ .)
+                )
+          ) %>%
+  
+  # Summary table
+  tbl_summary(
+    by = case_control_vaccine,
+    include = c(Composite_global, Composite_acc, Composite_rt),
+    statistic = list(all_continuous() ~ c("{mean} ({sd})")),
+    label = list(Composite_global ~ "Cognitron Global Score",
+                 Composite_acc ~ "Cognitron Accuracy Score",
+                 Composite_rt ~ "Cognitron RT Score")
+  ) %>%
+  
+  # Add one-way ANOVA
+  add_p(list(everything() ~ "t.test"))
+
+# Save table as png image
+gt::gtsave(as_gt(covidcns_ttesttable_ccv), file = "analysis/tables/ttest/covidcns_ttesttable_ccv.png")
+
+# View table
+covidcns_ttesttable_ccv
+```
+
+
+T-test table for cognitron dfe scores by case/control/vaccine
+```{r T tesst case control vaccine}
+covidcns_ttesttable1_ccv <- data_joined %>%
+  
+  # Remove pts missing cognitron
+  filter(!is.na(Composite_rt)) %>%
+  
+  # Mutate vaccine/control to NA, keep case and covid+/- controls
+  mutate(across(.cols = case_control_vaccine,
+                 .fns = ~case_when(str_detect(case_control_vaccine, "accine") ~ NA_character_,
+                                   . == "Control" ~ NA_character_,
+                                   . == "Control: COVID-19 positive (i.e. NO neurological or psychiatric complication)" ~ NA_character_,
+                                   TRUE ~ .)
+                )
+          ) %>%
+  
+  # Summary table
+  tbl_summary(
+    by = case_control_vaccine,
+    include = c(Composite_global, Composite_acc, Composite_rt),
+    statistic = list(all_continuous() ~ c("{mean} ({sd})")),
+    label = list(Composite_global ~ "Cognitron Global Score",
+                 Composite_acc ~ "Cognitron Accuracy Score",
+                 Composite_rt ~ "Cognitron RT Score")
+  ) %>%
+  
+  # Add one-way ANOVA
+  add_p(list(everything() ~ "t.test"))
+
+# Save table as png image
+gt::gtsave(as_gt(covidcns_ttesttable1_ccv), file = "analysis/tables/ttest/covidcns_ttesttable1_ccv.png")
+
+# View table
+covidcns_ttesttable1_ccv
+```

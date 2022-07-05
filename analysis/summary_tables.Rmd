@@ -1,0 +1,256 @@
+---
+title: "COVIDCNS Cognitive Analysis Summary Tables"
+author: "Zain Ahmad"
+date: '2022-07-05'
+output: html_document
+---
+
+Configure global options for all chunks
+```{r Setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  comment = '',
+  prompt = FALSE,
+  cache = FALSE
+  )
+```
+
+Clear global environment prior to initiation
+```{r Clear global environment}
+remove(list = ls())
+```
+
+Add the package_check function - used to install and load dependencies
+```{r Read in functions}
+source(file = "functions/package_check.R")
+```
+
+Use package_check to install and load dependencies
+Load tidyverse last
+```{r Install load dependencies}
+packages <- c("sjlabelled",
+              "gtsummary",
+              "tidyverse")
+
+package_check(packages)
+```
+
+Read in file with path to ilovecovidcns channel on Teams
+Ensure that your credentials directory is correctly located
+```{r Source filepath to ilovecovidcns OneDrive}
+source(file = "credentials/paths.R")
+```
+
+# Read in clean data
+
+COVIDCNS data
+```{r COVIDCNS load data}
+dat <- read_rds(
+  file = paste0(ilovecovidcns, "/data/covidcns_cognitive_data.rds")
+  )
+
+# Inspect dimensions of dataframe 
+dat %>%
+  dim()
+```
+
+## Summary Tables
+
+Summary table by case control vaccine
+```{r Summary table case control vaccine}
+covidcns_sumtable <- dat %>%
+  
+  # Mutate vaccine/control to NA, keep case and covid+/- controls
+  mutate(across(.cols = case_control_vaccine,
+                 .fns = ~case_when(str_detect(case_control_vaccine, "accine") ~ NA_character_,
+                                   . == "Control" ~ NA_character_,
+                                   TRUE ~ .)
+                )
+          ) %>%
+  
+  # Remove pts missing cognitron
+  filter(!is.na(Composite_global)) %>%
+  
+  # Mutate windowed admission to ordered factor
+  mutate(
+    ncrf1_admission_windowed = 
+      factor(
+        ncrf1_admission_windowed,
+        levels = c("March 2020 to August 2020",
+                   "September 2020 to February 2021",
+                   "March 2021 to August 2021",
+                   "September 2021 to February 2022",
+                   "Other",
+                   "Missing"),
+        ordered = TRUE
+        )
+    ) %>%
+  
+  # Convert NAs to explicit factor to show in table per category
+  dplyr::mutate(dem.sex_at_birth = factor(dem.sex_at_birth) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  dplyr::mutate(ncrf1_vital.admission_severity_worst_covid19 = factor(ncrf1_vital.admission_severity_worst_covid19) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  dplyr::mutate(ncrf2_med.corticosteroid = factor(ncrf2_med.corticosteroid) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  dplyr::mutate(ncrf1_comorbid.clinical_frailty_scale = factor(ncrf1_comorbid.clinical_frailty_scale) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  dplyr::mutate(dem.concerned_memory = factor(dem.concerned_memory) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  dplyr::mutate(dem.highest_education = factor(dem.highest_education) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  # Create summary table
+  tbl_summary(
+    
+    # split by case_control_vaccine
+    by = case_control_vaccine,
+              
+    # vars to include
+    include = c(dem.dob_age,
+                dem.sex_at_birth,
+                dem.highest_education,
+                ncrf1_vital.admission_severity_worst_covid19,
+                ncrf1_comorbid.clinical_frailty_scale,
+                ncrf1_admission_windowed,
+                gad7.sum_score,
+                phq9.sum_score,
+                pcl5.sum_score,
+                ncrf2_med.corticosteroid,
+                dem.concerned_memory,
+                Composite_global,
+                Composite_acc,
+                Composite_rt),
+    
+    # 2 line summary
+    type = all_continuous() ~ "continuous2",
+    
+    # exclude standard missing values
+    missing = "no",
+    
+    # add mean, sd, missing n and missing % for cont vars
+    statistic = list(all_continuous() ~ c("{mean} ({sd})", "{N_miss} ({p_miss}%)")),
+    
+    # add custom labels
+    label = list(dem.dob_age ~ "Age",
+                 dem.sex_at_birth ~ "Sex",
+                 dem.highest_education ~ "Education",
+                 ncrf1_vital.admission_severity_worst_covid19 ~ "COVID19 Severity",
+                 ncrf1_comorbid.clinical_frailty_scale ~ "Clinical Frailty Score",
+                 ncrf1_admission_windowed ~ "Date of Inpatient Admission",
+                 gad7.sum_score ~ "GAD7 Sumscore (Cutoff = 10)",
+                 phq9.sum_score ~ "PHQ9 Sumscore (Cutoff = 10)",
+                 pcl5.sum_score ~ "PCL5 Sumscore (Cutoff = 32)",
+                 ncrf2_med.corticosteroid ~ "Corticosteroid Administration",
+                 dem.concerned_memory ~ "Concerned about Memory",
+                 Composite_global ~ "Cognitron Global Score",
+                 Composite_acc ~ "Cognitron Accuracy Score",
+                 Composite_rt ~ "Cognitron RT Score")
+              ) %>%
+  
+  # add labels for missing n/%
+  modify_table_body(dplyr::mutate,
+                    label = ifelse(label == "N missing (% missing)", "Missing", label)
+                    ) %>%
+  
+  # bold variable names
+  bold_labels()
+
+# Save table as png image
+gt::gtsave(as_gt(covidcns_sumtable), file = "tables/summary/covidcns_sumtable.png")
+
+# View table
+covidcns_sumtable
+```
+
+Summary table by diagnostic group
+```{r Summary table diagnostic group}
+covidcns_sumtable_bycase <- data_joined %>%
+  
+  # Remove pts missing cognitron
+  filter(!is.na(Composite_global)) %>%
+  
+  # Mutate windowed admission to ordered factor
+  mutate(
+    ncrf1_admission_windowed = 
+      factor(
+        ncrf1_admission_windowed,
+        levels = c("March 2020 to August 2020",
+                   "September 2020 to February 2021",
+                   "March 2021 to August 2021",
+                   "September 2021 to February 2022",
+                   "Other",
+                   "Missing"),
+        ordered = TRUE
+        )
+    ) %>%
+  
+  # Convert NAs to explicit factor to show in table per category
+  dplyr::mutate(dem.sex_at_birth = factor(dem.sex_at_birth) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  dplyr::mutate(ncrf1_vital.admission_severity_worst_covid19 = factor(ncrf1_vital.admission_severity_worst_covid19) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  dplyr::mutate(ncrf2_med.corticosteroid = factor(ncrf2_med.corticosteroid) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  dplyr::mutate(ncrf1_comorbid.clinical_frailty_scale = factor(ncrf1_comorbid.clinical_frailty_scale) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  dplyr::mutate(dem.concerned_memory = factor(dem.concerned_memory) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  dplyr::mutate(dem.highest_education = factor(dem.highest_education) %>%
+                  forcats::fct_explicit_na()) %>%
+  
+  # Create summary table with stats to match Kuha's table
+  tbl_summary(by = diagnostic_group, # same as above except this line
+              include = c(dem.dob_age,
+                          dem.sex_at_birth,
+                          dem.highest_education,
+                          ncrf1_vital.admission_severity_worst_covid19,
+                          ncrf1_comorbid.clinical_frailty_scale,
+                          ncrf1_admission_windowed,
+                          gad7.sum_score,
+                          phq9.sum_score,
+                          pcl5.sum_score,
+                          ncrf2_med.corticosteroid,
+                          dem.concerned_memory,
+                          Composite_global,
+                          Composite_acc,
+                          Composite_rt),
+              type = all_continuous() ~ "continuous2",
+              missing = "no",
+              statistic = list(all_continuous() ~ c("{mean} ({sd})", "{N_miss} ({p_miss}%)")),
+              label = list(dem.dob_age ~ "Age",
+                           dem.sex_at_birth ~ "Sex",
+                           dem.highest_education ~ "Education",
+                           ncrf1_vital.admission_severity_worst_covid19 ~ "COVID19 Severity",
+                           ncrf1_comorbid.clinical_frailty_scale ~ "Clinical Frailty Score",
+                           ncrf1_admission_windowed ~ "Date of Inpatient Admission",
+                           gad7.sum_score ~ "GAD7 Sumscore (Cutoff = 10)",
+                           phq9.sum_score ~ "PHQ9 Sumscore (Cutoff = 10)",
+                           pcl5.sum_score ~ "PCL5 Sumscore (Cutoff = 32)",
+                           ncrf2_med.corticosteroid ~ "Corticosteroid Administration",
+                           dem.concerned_memory ~ "Concerned about Memory",
+                           Composite_global ~ "Cognitron Global Score",
+                           Composite_acc ~ "Cognitron Accuracy Score",
+                           Composite_rt ~ "Cognitron RT Score")
+              ) %>%
+  modify_table_body(dplyr::mutate,
+                    label = ifelse(label == "N missing (% missing)", "Missing", label)
+                    ) %>%
+  bold_labels()
+
+# Save table
+gt::gtsave(as_gt(covidcns_sumtable_bycase), file = "tables/summary/covidcns_sumtable_bycase.png")
+
+# View table
+covidcns_sumtable_bycase
+```

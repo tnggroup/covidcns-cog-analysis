@@ -1,0 +1,248 @@
+---
+title: "COVIDCNS Cognitive Analysis Regressions"
+author: "Zain Ahmad"
+date: '2022-07-05'
+output: html_document
+---
+
+Configure global options for all chunks
+```{r Setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  comment = '',
+  prompt = FALSE,
+  cache = FALSE
+  )
+```
+
+Clear global environment prior to initiation
+```{r Clear global environment}
+remove(list = ls())
+```
+
+Add the package_check function - used to install and load dependencies
+```{r Read in functions}
+source(file = "scripts/functions/package_check.R")
+```
+
+Use package_check to install and load dependencies
+Load tidyverse last
+```{r Install load dependencies}
+packages <- c("sjlabelled",
+              "gtsummary",
+              "tidyverse")
+
+package_check(packages)
+```
+
+Read in file with path to ilovecovidcns channel on Teams
+Ensure that your credentials directory is correctly located
+```{r Source filepath to ilovecovidcns OneDrive}
+source(file = "credentials/paths.R")
+```
+
+# Read in clean data
+
+COVIDCNS data
+```{r COVIDCNS load data}
+dat <- read_rds(
+  file = paste0(ilovecovidcns, "/data/covidcns_cognitive_data.rds")
+  )
+  
+# Check variable names in dataframe
+dat %>%
+  colnames()
+
+# Inspect dimensions of dataframe 
+dat %>%
+  dim()
+```
+
+## Regression Tables
+
+
+Multivariate regression table global scores
+```{r Regression table global}
+covidcns_regtable_global <- dat %>%
+
+  # Remove pts missing cognitron
+  filter(!is.na(Composite_global)) %>%
+  
+  # Select regression vars
+  select(Composite_global,
+         dem.dob_age,
+         dem.sex_at_birth,
+         dem.highest_education,
+         diagnostic_group,
+         ncrf1_vital.admission_severity_worst_covid19,
+         ncrf1_comorbid.clinical_frailty_scale,
+         gad7.sum_score,
+         phq9.sum_score,
+         pcl5.sum_score,
+         cfs.sum_score,
+         case_control_vaccine,
+         ncrf2_med.corticosteroid,
+         dem.concerned_memory
+         ) %>%
+  
+  # Relevel 
+  mutate(diagnostic_group = relevel(as.factor(diagnostic_group), ref = "Unknown")) %>%
+  
+  # Regression table
+  tbl_uvregression(
+    # linear regression
+    method = lm,
+    
+    # outcome cognitron global score
+    y = Composite_global,
+    
+    # set custom labels
+    label = list(dem.dob_age ~ "Age",
+                 dem.sex_at_birth ~ "Sex",
+                 dem.highest_education ~ "Education",
+                 diagnostic_group ~ "Clinical Group",
+                 ncrf1_vital.admission_severity_worst_covid19 ~ "COVID19 Severity",
+                 ncrf1_comorbid.clinical_frailty_scale ~ "Clinical Frailty Score",
+                 gad7.sum_score ~ "GAD7 Sumscore",
+                 phq9.sum_score ~ "PHQ9 Sumscore",
+                 pcl5.sum_score ~ "PCL5 Sumscore",
+                 cfs.sum_score ~ "CFS Sumscore",
+                 case_control_vaccine ~ "Case/Control/Vaccine status",
+                 ncrf2_med.corticosteroid ~ "Corticosteroid Administration",
+                 dem.concerned_memory ~ "Concerned about Memory"),
+    
+    # zero estimates for 1st category in categorical vars
+    add_estimate_to_reference_rows = TRUE
+  ) %>%
+  
+  # add bold variable names
+  bold_labels()
+
+# Save table as png image
+gt::gtsave(as_gt(covidcns_regtable_global), file = "tables/regression/covidcns_regtable_global.png")
+
+# View table
+covidcns_regtable_global
+```
+
+Multivariate regression table accuracy scores
+```{r Regression table accuracy}
+covidcns_regtable_accuracy <- dat %>%
+
+  # Remove pts missing cognitron
+  filter(!is.na(Composite_acc)) %>%
+  
+  # Select regression vars
+  select(Composite_acc,
+         dem.dob_age,
+         dem.sex_at_birth,
+         dem.highest_education,
+         diagnostic_group,
+         ncrf1_vital.admission_severity_worst_covid19,
+         ncrf1_comorbid.clinical_frailty_scale,
+         gad7.sum_score,
+         phq9.sum_score,
+         pcl5.sum_score,
+         cfs.sum_score,
+         case_control_vaccine,
+         ncrf2_med.corticosteroid,
+         dem.concerned_memory
+         ) %>%
+  
+  # Regression table
+  tbl_uvregression(
+    # linear regression
+    method = lm,
+    
+    # outcome cognitron global score
+    y = Composite_acc,
+    
+    # set custom labels
+    label = list(dem.dob_age ~ "Age",
+                 dem.sex_at_birth ~ "Sex",
+                 dem.highest_education ~ "Education",
+                 diagnostic_group ~ "Clinical Group",
+                 ncrf1_vital.admission_severity_worst_covid19 ~ "COVID19 Severity",
+                 ncrf1_comorbid.clinical_frailty_scale ~ "Clinical Frailty Score",
+                 gad7.sum_score ~ "GAD7 Sumscore",
+                 phq9.sum_score ~ "PHQ9 Sumscore",
+                 pcl5.sum_score ~ "PCL5 Sumscore",
+                 cfs.sum_score ~ "CFS Sumscore",
+                 case_control_vaccine ~ "Case/Control/Vaccine status",
+                 ncrf2_med.corticosteroid ~ "Corticosteroid Administration",
+                 dem.concerned_memory ~ "Concerned about Memory"),
+    
+    # zero estimates for 1st category in categorical vars
+    add_estimate_to_reference_rows = TRUE
+  ) %>%
+  
+  # add bold variable names
+  bold_labels()
+
+# Save table as png image
+gt::gtsave(as_gt(covidcns_regtable_accuracy), file = "tables/regression/covidcns_regtable_accuracy.png")
+
+# View table
+covidcns_regtable_accuracy
+```
+
+Multivariate regression table RTs
+```{r Regression table RTs}
+covidcns_regtable_rt <- dat %>%
+
+  # Remove pts missing cognitron
+  filter(!is.na(Composite_rt)) %>%
+  
+  # Select regression vars
+  select(Composite_rt,
+         dem.dob_age,
+         dem.sex_at_birth,
+         dem.highest_education,
+         diagnostic_group,
+         ncrf1_vital.admission_severity_worst_covid19,
+         ncrf1_comorbid.clinical_frailty_scale,
+         gad7.sum_score,
+         phq9.sum_score,
+         pcl5.sum_score,
+         cfs.sum_score,
+         case_control_vaccine,
+         ncrf2_med.corticosteroid,
+         dem.concerned_memory
+         ) %>%
+  
+  # Regression table
+  tbl_uvregression(
+    # linear regression
+    method = lm,
+    
+    # outcome cognitron global score
+    y = Composite_rt,
+    
+    # set custom labels
+    label = list(dem.dob_age ~ "Age",
+                 dem.sex_at_birth ~ "Sex",
+                 dem.highest_education ~ "Education",
+                 diagnostic_group ~ "Clinical Group",
+                 ncrf1_vital.admission_severity_worst_covid19 ~ "COVID19 Severity",
+                 ncrf1_comorbid.clinical_frailty_scale ~ "Clinical Frailty Score",
+                 gad7.sum_score ~ "GAD7 Sumscore",
+                 phq9.sum_score ~ "PHQ9 Sumscore",
+                 pcl5.sum_score ~ "PCL5 Sumscore",
+                 cfs.sum_score ~ "CFS Sumscore",
+                 case_control_vaccine ~ "Case/Control/Vaccine status",
+                 ncrf2_med.corticosteroid ~ "Corticosteroid Administration",
+                 dem.concerned_memory ~ "Concerned about Memory"),
+    
+    # zero estimates for 1st category in categorical vars
+    add_estimate_to_reference_rows = TRUE
+  ) %>%
+  
+  # add bold variable names
+  bold_labels()
+
+# Save table as png image
+gt::gtsave(as_gt(covidcns_regtable_rt), file = "tables/regression/covidcns_regtable_rt.png")
+
+# View table
+covidcns_regtable_rt
+```
