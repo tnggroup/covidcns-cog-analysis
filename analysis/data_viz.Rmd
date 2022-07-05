@@ -22,7 +22,7 @@ remove(list = ls())
 
 Add the package_check function - used to install and load dependencies
 ```{r Read in functions}
-source(file = "scripts/functions/package_check.R")
+source(file = "functions/package_check.R")
 ```
 
 Use package_check to install and load dependencies
@@ -30,6 +30,8 @@ Load tidyverse last
 ```{r Install load dependencies}
 packages <- c("sjlabelled",
               "gtsummary",
+              "cowplot",
+              "plotscale",
               "tidyverse")
 
 package_check(packages)
@@ -48,10 +50,6 @@ COVIDCNS data
 dat <- read_rds(
   file = paste0(ilovecovidcns, "/data/covidcns_cognitive_data.rds")
   )
-  
-# Check variable names in dataframe
-dat %>%
-  colnames()
 
 # Inspect dimensions of dataframe 
 dat %>%
@@ -100,7 +98,8 @@ pl1 <- pl1 +
 
 pl1
 
-ggsave("plots/bydiagnosis/cognitron_global_bydiag_violplot.png")
+ggsave(filename = "plots/bydiagnosis/cognitron_global_bydiag_violplot.png",
+       path = ilovecovidcns)
 ```
 
 
@@ -138,7 +137,8 @@ pl2 <- pl2 +
 
 pl2
 
-ggsave("plots/bydiagnosis/cognitron_acc_bydiag_violplot.png")
+ggsave("plots/bydiagnosis/cognitron_acc_bydiag_violplot.png",
+       path = ilovecovidcns)
 ```
 
 Violin plot cognitron RT by diagnostic group
@@ -175,7 +175,8 @@ pl3 <- pl3 +
 
 pl3
 
-ggsave("plots/bydiagnosis/cognitron_rt_bydiag_violplot.png")
+ggsave("plots/bydiagnosis/cognitron_rt_bydiag_violplot.png",
+       path = ilovecovidcns)
 ```
 
 
@@ -394,7 +395,8 @@ pl4 <- pl4 +
 
 pl4
 
-ggsave("plots/bytask/cognitron_bytask_cases_dfe_violplot.png")
+ggsave("plots/bytask/cognitron_bytask_cases_dfe_violplot.png",
+       path = ilovecovidcns)
 ```
 
 Violin plot cognitron tasks for controls only
@@ -430,7 +432,8 @@ pl5 <- pl5 +
 
 pl5
 
-ggsave("plots/bytask/cognitron_bytask_controls_dfe_violplot.png")
+ggsave("plots/bytask/cognitron_bytask_controls_dfe_violplot.png",
+       path = ilovecovidcns)
 ```
 
 Violin plot cognitron RTs for cases only
@@ -466,7 +469,8 @@ pl6 <- pl6 +
 
 pl6
 
-ggsave("plots/bytask/cognitron_bytaskRT_cases_dfe_violplot.png")
+ggsave("plots/bytask/cognitron_bytaskRT_cases_dfe_violplot.png",
+       path = ilovecovidcns)
 ```
 
 Violin plot cognitron RTs for controls only
@@ -502,7 +506,8 @@ pl7 <- pl7 +
 
 pl7
 
-ggsave("plots/bytask/cognitron_bytaskRT_controls_dfe_violplot.png")
+ggsave("plots/bytask/cognitron_bytaskRT_controls_dfe_violplot.png",
+       path = ilovecovidcns)
 ```
 
 # Multiplots
@@ -510,11 +515,23 @@ ggsave("plots/bytask/cognitron_bytaskRT_controls_dfe_violplot.png")
 Multiplot into single objects
 ```{r Multiplots}
 pl8 <- cowplot::plot_grid(pl1, pl2, pl3, nrow = 1)
-as.png(pl8, filename = "multiplots/cognitron_multiplot_diagscores.png" , width = 45, height = 15, scaled = TRUE)
+as.png(pl8,
+       filename = paste0(ilovecovidcns, "/multiplots/cognitron_multiplot_diagscores.png"),
+       width = 45,
+       height = 15,
+       scaled = TRUE)
 
 pl9 <- cowplot::plot_grid(pl4, pl5)
-as.png(pl9, filename = "multiplots/cognitron_multiplot_scores.png" , width = 30, height = 15, scaled = TRUE)
+as.png(pl9,
+       filename = paste0(ilovecovidcns, "/multiplots/cognitron_multiplot_scores.png"),
+       width = 30,
+       height = 15,
+       scaled = TRUE)
 
 pl10 <- cowplot::plot_grid(pl6, pl7)
-as.png(pl10, filename = "multiplots/cognitron_multiplot_RTs.png" , width = 30, height = 15, scaled = TRUE)
+as.png(pl10,
+       filename = paste0(ilovecovidcns, "/multiplots/cognitron_multiplot_RTs.png"),
+       width = 30,
+       height = 15,
+       scaled = TRUE)
 ```

@@ -22,7 +22,7 @@ remove(list = ls())
 
 Add the package_check function - used to install and load dependencies
 ```{r Read in functions}
-source(file = "scripts/functions/package_check.R")
+source(file = "functions/package_check.R")
 ```
 
 Use package_check to install and load dependencies
@@ -48,10 +48,6 @@ COVIDCNS data
 dat <- read_rds(
   file = paste0(ilovecovidcns, "/data/covidcns_cognitive_data.rds")
   )
-  
-# Check variable names in dataframe
-dat %>%
-  colnames()
 
 # Inspect dimensions of dataframe 
 dat %>%
@@ -63,7 +59,7 @@ dat %>%
 
 ANOVA table for cognitron dfe scores by case/control/vaccine
 ```{r ANOVA case control vaccine}
-covidcns_anovatable_ccv <- data_joined %>%
+covidcns_anovatable_ccv <- dat %>%
   
   # Remove pts missing cognitron
   filter(!is.na(Composite_rt)) %>%
@@ -90,7 +86,8 @@ covidcns_anovatable_ccv <- data_joined %>%
   add_p(list(everything() ~ "aov"))
 
 # Save table as png image
-gt::gtsave(as_gt(covidcns_anovatable_ccv), file = "analysis/tables/anova/covidcns_anovatable_ccv.png")
+gt::gtsave(as_gt(covidcns_anovatable_ccv),
+           file = paste0(ilovecovidcns, "/tables/anova/covidcns_anovatable_ccv.png"))
 
 # View table
 covidcns_anovatable_ccv
@@ -98,7 +95,7 @@ covidcns_anovatable_ccv
 
 ANOVA table for cognitron dfe scores by diagnostic group
 ```{r ANOVA diag group}
-covidcns_anovatable_diag <- data_joined %>%
+covidcns_anovatable_diag <- dat %>%
   
   # Remove pts missing cognitron
   filter(!is.na(Composite_rt)) %>%
@@ -117,7 +114,8 @@ covidcns_anovatable_diag <- data_joined %>%
   add_p(list(everything() ~ "aov"))
 
 # Save table as png image
-gt::gtsave(as_gt(covidcns_anovatable_diag), file = "analysis/tables/anova/covidcns_anovatable_diag.png")
+gt::gtsave(as_gt(covidcns_anovatable_diag),
+           file = paste0(ilovecovidcns, "/tables/anova/covidcns_anovatable_diag.png"))
 
 # View table
 covidcns_anovatable_diag
@@ -129,7 +127,7 @@ covidcns_anovatable_diag
 
 T-test table for cognitron dfe scores by case/control/vaccine
 ```{r T tesst case control vaccine}
-covidcns_ttesttable_ccv <- data_joined %>%
+covidcns_ttesttable_ccv <- dat %>%
   
   # Remove pts missing cognitron
   filter(!is.na(Composite_rt)) %>%
@@ -157,7 +155,8 @@ covidcns_ttesttable_ccv <- data_joined %>%
   add_p(list(everything() ~ "t.test"))
 
 # Save table as png image
-gt::gtsave(as_gt(covidcns_ttesttable_ccv), file = "analysis/tables/ttest/covidcns_ttesttable_ccv.png")
+gt::gtsave(as_gt(covidcns_ttesttable_ccv),
+           file = paste0(ilovecovidcns, "/tables/ttest/covidcns_ttesttable_ccv.png"))
 
 # View table
 covidcns_ttesttable_ccv
@@ -166,7 +165,7 @@ covidcns_ttesttable_ccv
 
 T-test table for cognitron dfe scores by case/control/vaccine
 ```{r T tesst case control vaccine}
-covidcns_ttesttable1_ccv <- data_joined %>%
+covidcns_ttesttable1_ccv <- dat %>%
   
   # Remove pts missing cognitron
   filter(!is.na(Composite_rt)) %>%
@@ -194,7 +193,8 @@ covidcns_ttesttable1_ccv <- data_joined %>%
   add_p(list(everything() ~ "t.test"))
 
 # Save table as png image
-gt::gtsave(as_gt(covidcns_ttesttable1_ccv), file = "analysis/tables/ttest/covidcns_ttesttable1_ccv.png")
+gt::gtsave(as_gt(covidcns_ttesttable1_ccv),
+           file = paste0(ilovecovidcns, "/tables/ttest/covidcns_ttesttable1_ccv.png"))
 
 # View table
 covidcns_ttesttable1_ccv

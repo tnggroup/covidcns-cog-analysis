@@ -22,14 +22,14 @@ remove(list = ls())
 
 Add the package_check function - used to install and load dependencies
 ```{r Read in functions}
-source(file = "scripts/functions/package_check.R")
+source(file = "functions/package_check.R")
 ```
 
 Use package_check to install and load dependencies
 Load tidyverse last
 ```{r Install load dependencies}
-packages <- c("sjlabelled",
-              "gtsummary",
+packages <- c("psych",
+              "corrplot",
               "tidyverse")
 
 package_check(packages)
@@ -48,10 +48,6 @@ COVIDCNS data
 dat <- read_rds(
   file = paste0(ilovecovidcns, "/data/covidcns_cognitive_data.rds")
   )
-  
-# Check variable names in dataframe
-dat %>%
-  colnames()
 
 # Inspect dimensions of dataframe 
 dat %>%
@@ -63,7 +59,7 @@ dat %>%
 
 Correlation Matrix and Plot
 ```{r Correlation matrix of all variables}
-corr_dat <- data_joined %>%
+corr_dat <- dat %>%
   select(
     `Age` = "dem.dob_age",
     `Sex` = "dem.sex_at_birth_numeric",
@@ -87,7 +83,7 @@ corr_out_rmat <- corr_out$rho
 
 
 # Write file path to save plot
-png(file = "analysis/correlations/corr_matrix.png")
+png(file = paste0(ilovecovidcns, "/correlations/corr_matrix.png"))
 # Create correlation matrix with hierarchical clustering
 corr_matrix_plot <- corrplot::corrplot(corr_out_rmat, 
          method = "color", # objects to represent the correlations on plot

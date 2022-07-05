@@ -162,7 +162,7 @@ covidcns_sumtable <- dat %>%
   bold_labels()
 
 # Save table as png image
-gt::gtsave(as_gt(covidcns_sumtable), file = "tables/summary/covidcns_sumtable.png")
+gt::gtsave(as_gt(covidcns_sumtable), file = paste0(ilovecovidcns, "/tables/summary/covidcns_sumtable.png"))
 
 # View table
 covidcns_sumtable
@@ -170,7 +170,7 @@ covidcns_sumtable
 
 Summary table by diagnostic group
 ```{r Summary table diagnostic group}
-covidcns_sumtable_bycase <- data_joined %>%
+covidcns_sumtable_bycase <- dat %>%
   
   # Remove pts missing cognitron
   filter(!is.na(Composite_global)) %>%
@@ -249,7 +249,7 @@ covidcns_sumtable_bycase <- data_joined %>%
   bold_labels()
 
 # Save table
-gt::gtsave(as_gt(covidcns_sumtable_bycase), file = "tables/summary/covidcns_sumtable_bycase.png")
+gt::gtsave(as_gt(covidcns_sumtable_bycase), file = paste0(ilovecovidcns, "/tables/summary/covidcns_sumtable_bycase.png"))
 
 # View table
 covidcns_sumtable_bycase

@@ -72,17 +72,16 @@ dat <- dat %>%
                 )
          )
 
-dat <- dat %>%
-  mutate(across(where(is.character),
-                ~case_when(
-                  . == "Not applicable" ~ NA_character_,
-                  . == "Seen but not answered" ~ NA_character_,
-                  . == "Don't know" ~ NA_character_,
-                  . == "Prefer not to answer" ~ NA_character_,
-                  . == "Prefer not to say" ~ NA_character_,
-                  TRUE ~ .)
-                )
-         )
+non_ans_vals <- c(
+  "Not applicable",
+  "Seen but not answered",
+  "Don't know",
+  "Prefer not to answer",
+  "Prefer not to say"
+)
+
+dat %>% mutate_all(~ na_if(., . == "Seen but not answered"))
+
 ```
 
 Add windowed inpatient admission variable

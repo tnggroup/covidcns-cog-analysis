@@ -22,7 +22,7 @@ remove(list = ls())
 
 Add the package_check function - used to install and load dependencies
 ```{r Read in functions}
-source(file = "scripts/functions/package_check.R")
+source(file = "functions/package_check.R")
 ```
 
 Use package_check to install and load dependencies
@@ -48,10 +48,6 @@ COVIDCNS data
 dat <- read_rds(
   file = paste0(ilovecovidcns, "/data/covidcns_cognitive_data.rds")
   )
-  
-# Check variable names in dataframe
-dat %>%
-  colnames()
 
 # Inspect dimensions of dataframe 
 dat %>%
@@ -119,7 +115,8 @@ covidcns_regtable_global <- dat %>%
   bold_labels()
 
 # Save table as png image
-gt::gtsave(as_gt(covidcns_regtable_global), file = "tables/regression/covidcns_regtable_global.png")
+gt::gtsave(as_gt(covidcns_regtable_global),
+           file = paste0(ilovecovidcns, "/tables/regression/covidcns_regtable_global.png"))
 
 # View table
 covidcns_regtable_global
@@ -180,7 +177,8 @@ covidcns_regtable_accuracy <- dat %>%
   bold_labels()
 
 # Save table as png image
-gt::gtsave(as_gt(covidcns_regtable_accuracy), file = "tables/regression/covidcns_regtable_accuracy.png")
+gt::gtsave(as_gt(covidcns_regtable_accuracy),
+           file = paste0(ilovecovidcns, "/tables/regression/covidcns_regtable_accuracy.png"))
 
 # View table
 covidcns_regtable_accuracy
@@ -241,7 +239,8 @@ covidcns_regtable_rt <- dat %>%
   bold_labels()
 
 # Save table as png image
-gt::gtsave(as_gt(covidcns_regtable_rt), file = "tables/regression/covidcns_regtable_rt.png")
+gt::gtsave(as_gt(covidcns_regtable_rt),
+           file = paste0(ilovecovidcns, "/tables/regression/covidcns_regtable_rt.png"))
 
 # View table
 covidcns_regtable_rt

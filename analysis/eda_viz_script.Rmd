@@ -5,6 +5,8 @@ date: "24/06/2022"
 output: html_document
 ---
 
+**Deprecated**
+
 Setup environment
 ```{r}
 # Clear global environment
@@ -1125,33 +1127,3 @@ as.png(pl9, filename = "analysis/multiplots/cognitron_multiplot_scores.png" , wi
 pl10 <- cowplot::plot_grid(pl6, pl7)
 as.png(pl10, filename = "analysis/multiplots/cognitron_multiplot_RTs.png" , width = 30, height = 15, scaled = TRUE)
 ```
-
-
-
-
-
-
-```{r}
-cowplot::plot_grid(pl4, pl5)
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
