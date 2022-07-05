@@ -53,6 +53,78 @@ dat %>%
   dim()
 ```
 
+Select variables relevant to analysis only as listed in OSF plus others required
+```{r Select analysis variables}
+dat %>%
+  select(
+    ID,
+    # sample level groupings
+    case_control_vaccine,
+    diagnostic_group,
+    # baseline demographics
+    dem.dob_age,
+    dem.sex_at_birth,
+    dem.highest_education,
+    dem.concerned_memory,
+    # mh questionnaires
+    gad7.sum_score,
+    phq9.sum_score,
+    pcl5.sum_score,
+    # ncrf data
+    ncrf1_vital.admission_severity_worst_covid19,
+    ncrf1_comorbid.clinical_frailty_scale,
+    ncrf1_admission_windowed,
+    ncrf2_med.corticosteroid,
+    # cognitron demographics
+    age1,
+    age2,
+    decade,
+    sex,
+    language,
+    education,
+    DEVICE,
+    # cognitron task scores
+    rs_prospectiveMemoryWords_1_immediate,
+    rs_spatialSpan,
+    rs_manipulations2D,
+    rs_verbalAnalogies,
+    rs_prospectiveMemoryWords_1_delayed,
+    rs_TOL,
+    rs_targetDetection,
+    # cognitron task RTs
+    rs_prospectiveMemoryWords_1_immediate_RT,
+    rs_spatialSpan_RT,
+    rs_manipulations2D_RT,
+    rs_verbalAnalogies_RT,
+    rs_prospectiveMemoryWords_1_delayed_RT,
+    rs_TOL_RT,
+    rs_targetDetection_RT,
+    # cognitron task DfE scores
+    rs_manipulations2D_dfe,
+    rs_TOL_dfe,
+    rs_prospectiveMemoryWords_1_delayed_dfe,
+    rs_prospectiveMemoryWords_1_immediate_dfe,
+    rs_spatialSpan_dfe,
+    rs_targetDetection_dfe,
+    rs_verbalAnalogies_dfe,
+    # cognitron task DfE RTs
+    rs_manipulations2D_RT_dfe,
+    rs_TOL_RT_dfe,
+    rs_prospectiveMemoryWords_1_delayed_RT_dfe,
+    rs_prospectiveMemoryWords_1_immediate_RT_dfe,
+    rs_spatialSpan_RT_dfe,
+    rs_targetDetection_RT_dfe,
+    rs_verbalAnalogies_RT_dfe,
+    # cognitron composite scores
+    Composite_global,
+    Composite_acc,
+    Composite_rt
+  )
+
+```
+
+
+
 Recode Non-answer values to NA
 -555 'Not applicable' response from participant
 -777 Seen but not answered
