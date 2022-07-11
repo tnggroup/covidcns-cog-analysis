@@ -74,17 +74,16 @@ dat <- dat %>%
     dem.has_your_memory_got_progressively_worse,
     # mh questionnaires
     gad7.sum_score,
-    gad7.binary_clinical,
+    gad7.clinical_gad,
     phq9.sum_score,
-    phq9.binary_depression,
+    phq9.clinical_mdd,
     pcl5.sum_score,
-    pcl5.binary_PTSD,
-    cfs.sum_score,
+    pcl5.clinical_ptsd,
     cfs.mental_subscale,
     cfs.physical_subscale,
     # ncrf data
     ncrf1_vital.admission_severity_worst_covid19,
-    ncrf1_pre_med.had_covid19_vaccine,
+    ncrf1_pre_med.months_presentation.had_covid19_vaccine,
     ncrf1_comorbid.clinical_frailty_scale,
     ncrf1_admission.date_of_inpatient_admission.txt,
     ncrf1_admission.date_of_positive_covid19_test.txt,
@@ -282,7 +281,7 @@ dat <- dat %>%
 Remove unknown from corticosteroid administration and covid vaccine
 ```{r Remove unknown}
 dat <- dat %>%
-  mutate(ncrf1_pre_med.had_covid19_vaccine = na_if(ncrf1_pre_med.had_covid19_vaccine, "Unknown")) %>%
+  mutate(ncrf1_pre_med.months_presentation.had_covid19_vaccine = na_if(ncrf1_pre_med.months_presentation.had_covid19_vaccine, "Unknown")) %>%
   mutate(ncrf2_med.corticosteroid = na_if(ncrf2_med.corticosteroid, "Unknown"))
 ```
 
