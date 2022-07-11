@@ -33,6 +33,7 @@ packages <- c("sjlabelled",
               "tidyverse")
 
 package_check(packages)
+theme_gtsummary_compact()
 ```
 
 Read in file with path to ilovecovidcns channel on Teams
