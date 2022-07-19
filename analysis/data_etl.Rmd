@@ -53,11 +53,16 @@ dat %>%
   dim()
 ```
 
+
+# Data Selection
+
 Select variables relevant to analysis only as listed in OSF plus others required
 ```{r Select analysis variables}
 dat <- dat %>%
   select(
     ID,
+    startDate,
+    endDate,
     # sample level groupings
     case_control_vaccine,
     diagnostic_group,
@@ -66,6 +71,9 @@ dat <- dat %>%
     dem.sex_at_birth,
     dem.highest_education,
     dem.is_english_your_first_language,
+    dem.nhs_ethnicity,
+    dem.simplified_ethnicity,
+    impact.current_employment_status,
     # demographics memory questions
     dem.concerned_memory,
     dem.concerned_memory_before_covid,
@@ -146,6 +154,10 @@ dat <- dat %>%
 dat %>%
   dim()
 ```
+
+
+# Remove nonanswer responses
+
 Remove character non-answer values and drop unused levels
 ```{r Remove non-answer vals}
 dat <- dat %>%
@@ -187,7 +199,6 @@ dat <- dat %>%
   )
 ```
 
-
 Remove -777 from numeric vars
 ```{r Remove -777}
 dat <- dat %>%
@@ -198,6 +209,16 @@ dat <- dat %>%
     )
   )
 ```
+
+Remove unknown from corticosteroid administration and covid vaccine
+```{r Remove unknown}
+dat <- dat %>%
+  mutate(ncrf1_pre_med.months_presentation.had_covid19_vaccine = na_if(ncrf1_pre_med.months_presentation.had_covid19_vaccine, "Unknown")) %>%
+  mutate(ncrf2_med.corticosteroid = na_if(ncrf2_med.corticosteroid, "Unknown"))
+```
+
+
+# Add derived variables
 
 Add windowed inpatient admission variable
 ```{r Window inpatient admission}
@@ -217,6 +238,10 @@ dat <- dat %>%
     ) %>%
   mutate(ncrf1_admission.inpatient_admission_windowed = na_if(ncrf1_admission.inpatient_admission_windowed, "Missing")) %>%
   mutate(ncrf1_admission.inpatient_admission_windowed = na_if(ncrf1_admission.inpatient_admission_windowed, "Other"))
+
+dat %>%
+  select(ncrf1_admission.inpatient_admission_windowed) %>%
+  gtsummary::tbl_summary()
 ```
 
 Add windowed covid test variable
@@ -237,7 +262,47 @@ dat <- dat %>%
     ) %>%
   mutate(ncrf1_admission.covid_test_windowed = na_if(ncrf1_admission.covid_test_windowed, "Missing")) %>%
   mutate(ncrf1_admission.covid_test_windowed = na_if(ncrf1_admission.covid_test_windowed, "Other"))
+
+dat %>%
+  select(ncrf1_admission.covid_test_windowed) %>%
+  gtsummary::tbl_summary()
 ```
+
+Add time since covid variable
+```{r}
+dat <- dat %>%
+  mutate(
+    ncrf1_admission.time_since_covid =
+      difftime(
+        startDate,
+        ncrf1_admission.date_of_positive_covid19_test.txt,
+        units = "days"
+        )
+  )
+
+dat %>%
+  select(ncrf1_admission.time_since_covid) %>%
+  gtsummary::tbl_summary()
+```
+
+Add time since admission variable
+```{r}
+dat <- dat %>%
+  mutate(
+    ncrf1_admission.time_since_admission =
+      difftime(
+        startDate,
+        ncrf1_admission.date_of_inpatient_admission.txt,
+        units = "days")
+  )
+
+dat %>%
+  select(ncrf1_admission.time_since_admission) %>%
+  gtsummary::tbl_summary()
+```
+
+
+# Simplify variables scales
 
 Simplify COVID19 severity
 ```{r Simplify severity}
@@ -258,6 +323,10 @@ dat <- dat %>%
         )
     ) %>%
   mutate(ncrf1_vital.admission_severity_worst_covid19 = na_if(ncrf1_vital.admission_severity_worst_covid19, "Missing"))
+
+dat %>%
+  select(ncrf1_vital.admission_severity_worst_covid19) %>%
+  gtsummary::tbl_summary()
 ```
 
 Simplify clinical frailty score
@@ -276,15 +345,14 @@ dat <- dat %>%
                 )
          ) %>%
   mutate(ncrf1_comorbid.clinical_frailty_scale = na_if(ncrf1_comorbid.clinical_frailty_scale, "Missing"))
+
+dat %>%
+  select(ncrf1_comorbid.clinical_frailty_scale) %>%
+  gtsummary::tbl_summary()
 ```
 
-Remove unknown from corticosteroid administration and covid vaccine
-```{r Remove unknown}
-dat <- dat %>%
-  mutate(ncrf1_pre_med.months_presentation.had_covid19_vaccine = na_if(ncrf1_pre_med.months_presentation.had_covid19_vaccine, "Unknown")) %>%
-  mutate(ncrf2_med.corticosteroid = na_if(ncrf2_med.corticosteroid, "Unknown"))
-```
 
+# Save analysis data
 
 Save data
 ```{r Write to .rds file}

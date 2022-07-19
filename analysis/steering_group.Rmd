@@ -1,0 +1,349 @@
+---
+title: "COVIDCNS Steering Group Data Table and Visualisation Script"
+author: "Zain Ahmad"
+date: '2022-07-12'
+output: html_document
+---
+
+Configure global options for all chunks
+```{r Setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  comment = '',
+  prompt = FALSE,
+  cache = FALSE
+  )
+```
+
+Clear global environment prior to initiation
+```{r Clear global environment}
+remove(list = ls())
+```
+
+Add the package_check function - used to install and load dependencies
+```{r Read in functions}
+source(file = "functions/package_check.R")
+```
+
+Use package_check to install and load dependencies
+Load tidyverse last
+```{r Install load dependencies}
+packages <- c("sjlabelled",
+              "gtsummary",
+              "cowplot",
+              "plotscale",
+              "tidyverse")
+
+package_check(packages)
+```
+
+Read in file with path to ilovecovidcns channel on Teams
+Ensure that your credentials directory is correctly located
+```{r Source filepath to ilovecovidcns OneDrive}
+source(file = "credentials/paths.R")
+```
+
+# Read in clean data
+
+COVIDCNS data
+```{r COVIDCNS load data}
+dat <- read_rds(
+  file = paste0(ilovecovidcns, "/data/covidcns_cognitive_data.rds")
+  )
+
+# Inspect dimensions of dataframe 
+dat %>%
+  dim()
+```
+
+Create subset of data to table
+```{r Subset for table}
+table_subset <- dat %>%
+  select(
+    # sample level groupings
+    case_control_vaccine,
+    # baseline demographics
+    dem.dob_age,
+    dem.sex_at_birth,
+    dem.highest_education,
+    dem.is_english_your_first_language,
+    dem.simplified_ethnicity,
+    impact.current_employment_status,
+    # ncrf data
+    ncrf1_vital.admission_severity_worst_covid19,
+    ncrf1_comorbid.clinical_frailty_scale,
+    ncrf1_admission.inpatient_admission_windowed
+  ) %>%
+  # Mutate vaccine/control to NA, keep case and covid+/- controls
+  mutate(across(.cols = case_control_vaccine,
+                 .fns = ~case_when(str_detect(case_control_vaccine, "accine") ~ NA_character_,
+                                   . == "Control" ~ NA_character_,
+                                   str_detect(case_control_vaccine, "ontrol") ~ "Control",
+                                   str_detect(case_control_vaccine, "ase") ~ "Case",
+                                   TRUE ~ .)
+                )
+          ) %>%
+  
+  # Mutate windowed admission to ordered factor
+  mutate(
+    ncrf1_admission.inpatient_admission_windowed = 
+      factor(
+        ncrf1_admission.inpatient_admission_windowed,
+        levels = c("March 2020 to August 2020",
+                   "September 2020 to February 2021",
+                   "March 2021 to August 2021",
+                   "September 2021 to February 2022",
+                   NA
+                   ),
+        ordered = TRUE
+        )
+    ) %>%
+
+  # Mutate clinical frailty to ordered factor
+  mutate(
+    ncrf1_comorbid.clinical_frailty_scale = 
+      factor(
+        ncrf1_comorbid.clinical_frailty_scale,
+        levels = c(
+          "Fit",
+          "Very mild or mild frailty",
+          "Moderate or severe frailty",
+          NA
+          ),
+        ordered = TRUE
+        )
+    ) %>%
+  
+  # Mutate covid severity to ordered factor
+  mutate(
+    ncrf1_vital.admission_severity_worst_covid19 = 
+      factor(
+        ncrf1_vital.admission_severity_worst_covid19,
+        levels = c(
+          "Uninfected",
+          "Ambulatory mild disease",
+          "Hospitalised: moderate disease",
+          "Hospitalised: severe disease",
+          NA
+          ),
+        ordered = TRUE
+        )
+    ) %>%
+  
+  # Mutate ethnicity to ordered factor
+  mutate(
+    dem.simplified_ethnicity = 
+      factor(
+        dem.simplified_ethnicity,
+        levels = c(
+          "White",
+          "Black",
+          "Asian",
+          "Mixed",
+          "Other",
+          NA
+          ),
+        ordered = TRUE
+        )
+    ) %>%
+
+  # Convert NAs to explicit factor to show in table per category
+  mutate(
+    across(
+      where(is.factor),
+      ~factor(.)
+    )
+  ) %>%
+  mutate(
+    across(
+      where(is.factor),
+      ~forcats::fct_explicit_na(.)
+    )
+  )
+```
+
+Create list of labels
+```{r Create label list}
+dat_label_list <- list(
+      # demographics
+      dem.dob_age ~ "Age",
+      dem.sex_at_birth ~ "Sex",
+      dem.highest_education ~ "Education",
+      dem.is_english_your_first_language ~ "English as First Language",
+      dem.simplified_ethnicity ~ "Ethnicity",
+      impact.current_employment_status ~ "Employment Status",
+      # ncrf data
+      ncrf1_vital.admission_severity_worst_covid19 ~ "COVID19 Severity",
+      ncrf1_comorbid.clinical_frailty_scale ~ "Clinical Frailty Score",
+      ncrf1_admission.inpatient_admission_windowed ~ "Date of Inpatient Admission"
+      )
+```
+
+
+## Summary Tables
+
+Summary table by case control vaccine
+```{r Summary table case control vaccine}
+covidcns_sumtable <- table_subset %>%
+  
+  # Create summary table
+  tbl_summary(
+    
+    # split by case_control_vaccine
+    by = case_control_vaccine,
+    
+    # 2 line summary and show yes/no
+    type = list(
+      all_continuous() ~ "continuous2",
+      all_dichotomous() ~ "categorical"
+    ),
+    
+    # exclude standard missing values
+    missing = "no",
+    
+    # add mean, sd, missing n and missing % for cont vars
+    statistic = list(all_continuous() ~ c("{mean} ({sd})", "{N_miss} ({p_miss}%)")),
+    
+    # add custom labels
+    label = dat_label_list
+              ) %>%
+  
+  # add labels for missing n/%
+  modify_table_body(dplyr::mutate,
+                    label = ifelse(label == "N missing (% missing)", "Missing", label)
+                    ) %>%
+  
+  # bold variable names
+  bold_labels()
+
+# Save table as docx
+flextable::save_as_docx(
+  as_flex_table(covidcns_sumtable),
+  path = "/Users/zainahmad/Library/CloudStorage/OneDrive-SharedLibraries-King'sCollegeLondon/TNG-Public - ilovecovidcns - ilovecovidcns/data_sharing/naomi/steering_group_table.docx"
+  )
+
+# View table
+covidcns_sumtable
+```
+
+
+# Plots
+
+
+Create subset for plotting
+```{r Subset for plot}
+plot_subset <- dat %>%
+  mutate(across(.cols = case_control_vaccine,
+                 .fns = ~case_when(str_detect(case_control_vaccine, "accine") ~ NA_character_,
+                                   . == "Control" ~ NA_character_,
+                                   str_detect(case_control_vaccine, "ontrol") ~ "Control",
+                                   str_detect(case_control_vaccine, "ase") ~ "Case",
+                                   TRUE ~ .)
+                )
+          )
+
+plot_subset <- subset(plot_subset, !is.na(dem.simplified_ethnicity) &
+                  !is.na(case_control_vaccine))
+
+plot_subset_case <- subset(plot_subset, case_control_vaccine == "Case") %>% 
+    count(dem.simplified_ethnicity = factor(dem.simplified_ethnicity)) %>% 
+    mutate(pct = prop.table(n))
+
+plot_subset_control <- subset(plot_subset, case_control_vaccine == "Control") %>% 
+    count(dem.simplified_ethnicity = factor(dem.simplified_ethnicity)) %>% 
+    mutate(pct = prop.table(n))
+
+plot_subset %>% count(case_control_vaccine)
+```
+
+
+# Ethnicity Plot
+
+
+Bar plot ethnicity for cases
+```{r Ethnicity case}
+pl1 <- ggplot(
+  data = plot_subset_case, # pick only cases
+  aes(x = dem.simplified_ethnicity,
+      y = pct,
+      fill = dem.simplified_ethnicity,
+      label = scales::percent(pct))
+  )
+
+
+pl1 <- pl1 + geom_col(position = 'dodge')
+
+pl1 <- pl1 + scale_y_continuous(labels=scales::percent_format())
+
+pl1 <- pl1 + xlab("Ethnicity")
+
+pl1 <- pl1 + ylab("Relative Frequency")
+
+pl1 <- pl1 + labs(fill = "Ethnicity")
+
+pl1 <- pl1 + scale_fill_brewer(palette = "Accent")
+
+pl1 <- pl1 + geom_text(position = position_dodge(width = .9),    # move to center of bars
+              vjust = -0.5,    # nudge above top of bar
+              size = 3)
+
+pl1 <- pl1 + geom_text(x=0.7, y=0.5, label="n=304")
+
+pl1 <- pl1 + theme_bw()
+
+pl1 <- pl1 + 
+  ggtitle("Ethnicity for Cases in the COVID-CNS Study") + 
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(size = 9,
+                                   angle = 30,
+                                   hjust = 1))
+
+pl1
+
+ggsave(filename = "/Users/zainahmad/Library/CloudStorage/OneDrive-SharedLibraries-King'sCollegeLondon/TNG-Public - ilovecovidcns - ilovecovidcns/data_sharing/naomi/ethnicity_cases_plot_without_missing.png")
+```
+
+
+
+Bar plot ethnicity for controls
+```{r Ethnicity control}
+pl1 <- ggplot(
+  data = plot_subset_control, # pick only controls
+  aes(x = dem.simplified_ethnicity,
+      y = pct,
+      fill = dem.simplified_ethnicity,
+      label = scales::percent(pct))
+  )
+
+
+pl1 <- pl1 + geom_col(position = 'dodge')
+
+pl1 <- pl1 + scale_y_continuous(labels=scales::percent_format())
+
+pl1 <- pl1 + xlab("Ethnicity")
+
+pl1 <- pl1 + ylab("Relative Frequency")
+
+pl1 <- pl1 + labs(fill = "Ethnicity")
+
+pl1 <- pl1 + scale_fill_brewer(palette = "Accent")
+
+pl1 <- pl1 + geom_text(position = position_dodge(width = .9), # move to center of bars
+              vjust = -0.5,    # nudge above top of bar
+              size = 3)
+
+pl1 <- pl1 + geom_text(x=0.7, y=0.5, label="n=171")
+
+pl1 <- pl1 + theme_bw()
+
+pl1 <- pl1 + 
+  ggtitle("Ethnicity for Controls in the COVID-CNS Study") + 
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(size = 9,
+                                   angle = 30,
+                                   hjust = 1))
+
+pl1
+
+ggsave(filename = "/Users/zainahmad/Library/CloudStorage/OneDrive-SharedLibraries-King'sCollegeLondon/TNG-Public - ilovecovidcns - ilovecovidcns/data_sharing/naomi/ethnicity_controls_plot_without_missing.png")
+```
